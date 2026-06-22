@@ -1,0 +1,5 @@
+../Core/Src/pc_modbus.c:120:6:Modbus_Restart_RX_DMA_PC	8	static
+../Core/Src/pc_modbus.c:129:6:Modbus_Process_Request_PC	40	static
+../Core/Src/pc_modbus.c:264:6:UART8_Start_RX	24	static
+../Core/Src/pc_modbus.c:245:6:PC_UART_ReInit	16	static
+../Core/Src/pc_modbus.c:31:6:modbus_task_pc	24	static

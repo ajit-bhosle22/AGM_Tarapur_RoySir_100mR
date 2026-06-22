@@ -1,0 +1,10 @@
+../Core/Src/AT24CM01_Eeprom.c:13:19:EEPROM_WriteByte	1
+../Core/Src/AT24CM01_Eeprom.c:24:19:EEPROM_ReadByte	2
+../Core/Src/AT24CM01_Eeprom.c:40:19:EEPROM_WritePage	2
+../Core/Src/AT24CM01_Eeprom.c:54:19:EEPROM_Write_Config	5
+../Core/Src/AT24CM01_Eeprom.c:80:19:EEPROM_Read_Config	3
+../Core/Src/AT24CM01_Eeprom.c:104:19:WaitForEEPROM	2
+../Core/Src/AT24CM01_Eeprom.c:111:6:cpy_reg_to_eeprom_reg	1
+../Core/Src/AT24CM01_Eeprom.c:160:6:Save_Config_To_Eeprom	2
+../Core/Src/AT24CM01_Eeprom.c:175:6:Load_Default_Config	1
+../Core/Src/AT24CM01_Eeprom.c:239:6:Unstick_I2C_Bus	2

@@ -1,0 +1,8 @@
+../Core/Src/Detector_Modbus.c:211:6:Modbus_Restart_RX_DMA_DTC	16
+../Core/Src/Detector_Modbus.c:220:6:Modbus_Master_Poll_Dtc	1
+../Core/Src/Detector_Modbus.c:238:6:detector_write_single_register	1
+../Core/Src/Detector_Modbus.c:259:6:detector_write_multiple_registers	2
+../Core/Src/Detector_Modbus.c:291:6:Modbus_Process_Request_dtc	10
+../Core/Src/Detector_Modbus.c:351:6:USART2_Start_RX	18
+../Core/Src/Detector_Modbus.c:396:6:DTC_UART_ReInit	2
+../Core/Src/Detector_Modbus.c:47:6:modbus_task_dtc	30

@@ -1,0 +1,5 @@
+../Core/Src/App_7_segment.c:7:19:MAX7219_Send	1
+../Core/Src/App_7_segment.c:16:6:MAX7219_Init	6
+../Core/Src/App_7_segment.c:25:6:MAX7219_DisplayNumber	3
+../Core/Src/App_7_segment.c:40:6:MAX7219_DisplayFloat	5
+../Core/Src/App_7_segment.c:61:6:Test_SPI_Send	2
