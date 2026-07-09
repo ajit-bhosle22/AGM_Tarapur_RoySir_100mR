@@ -245,7 +245,7 @@ void Check_Fault_Conditions(void)
 		last_tick_time_ack=HAL_GetTick();
 	}
 	else if((Hv_Voltage < HV_MIN || Hv_Voltage > HV_MAX) && State_Flag == Normal_Flag
-	&& (HAL_GetTick()-boot_up_time_tick_hv>5000) && State_Flag != Dtc_Failed_Flag)
+	&& (HAL_GetTick()-boot_up_time_tick_hv>5000) && State_Flag != Dtc_Failed_Flag && Modbus_Registers.FREQ_DTC == 0)
 	{
 		State_Flag = Hv_Fault_Flag;
 
@@ -321,14 +321,21 @@ void toggle_buzzer_red_yellow_leds(void)
 	if ((prevState == Alarm_Flag || prevState == Overload_Flag ||  prevState == Overrun_Flag) && (HAL_GetTick()-last_tick_time_ms>500))
 	{
 		last_tick_time_ms=HAL_GetTick();
-		if(Alarm_OneSec_Generated == false)
-		{
-			Buzzer_Off();
+		if(audio_mode == 1){
+//			if(Alarm_OneSec_Generated == false)
+//			{
+//				Buzzer_Off();
+//			}
+//			else
+//			{
+//				Buzzer_On();
+//				Alarm_OneSec_Generated = false;
+//			}
+			Buzzer_On();
 		}
 		else
 		{
-			Buzzer_On();
-			Alarm_OneSec_Generated = false;
+			Buzzer_Off();
 		}
 	}
 
@@ -367,11 +374,16 @@ void ProcessSystem(void)
 
 void Handle_AlarmState(void)
 {
-    LED_Red_On();
+	LED_Red_On();
 	LED_Green_Off();
 	LED_Yellow_Off();
-	Buzzer_On();
 	Relay1_Off();
+	if(audio_mode == 1){
+		Buzzer_On();
+	}
+	else{
+		Buzzer_Off();
+	}
 }
 
 void Handle_HvFailState(void)
@@ -397,8 +409,14 @@ void Handle_OverLoadState(void)
 	LED_Red_On();
 	LED_Green_Off();
 	LED_Yellow_Off();
-	Buzzer_On();
 	Relay1_Off();
+	if(audio_mode == 1){
+		Buzzer_On();
+	}
+	else
+	{
+		Buzzer_Off();
+	}
 }
 
 void Handle_OverRunState(void)
@@ -406,8 +424,13 @@ void Handle_OverRunState(void)
 	LED_Red_On();
 	LED_Green_Off();
 	LED_Yellow_Off();
-	Buzzer_On();
 	Relay1_Off();
+	if(audio_mode == 1){
+		Buzzer_On();
+	}
+	else{
+		Buzzer_Off();
+	}
 }
 
 void Handle_AckState(void)

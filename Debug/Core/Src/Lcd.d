@@ -37,8 +37,15 @@ Core/Src/Lcd.o: ../Core/Src/Lcd.c ../Core/Inc/main.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim_ex.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h \
- ../Core/Inc/main_global.h ../Core/Inc/Lcd.h ../Core/Inc/main.h \
- ../Core/Inc/modbus.h ../Core/Inc/AT24CM01_Eeprom.h ../Core/Inc/modbus.h \
+ ../Core/Inc/main_global.h \
+ C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/socket.h \
+ C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/wizchip_conf.h \
+ C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/W5500/w5500.h \
+ C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/wizchip_conf.h \
+ C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/wizchip_port.h \
+ C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/socket.h \
+ ../Core/Inc/Lcd.h ../Core/Inc/main.h ../Core/Inc/modbus.h \
+ ../Core/Inc/AT24CM01_Eeprom.h ../Core/Inc/modbus.h \
  ../Core/Inc/Fault_Handler.h ../Core/Inc/pc_modbus.h \
  ../Core/Inc/tcp_server_registers.h \
  ../Core/Inc/Detector_Modbus_registers.h ../Core/Inc/App_7_segment.h \
@@ -83,6 +90,12 @@ Core/Src/Lcd.o: ../Core/Src/Lcd.c ../Core/Inc/main.h \
 ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h:
 ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h:
 ../Core/Inc/main_global.h:
+C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/socket.h:
+C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/wizchip_conf.h:
+C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/W5500/w5500.h:
+C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/wizchip_conf.h:
+C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/wizchip_port.h:
+C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/socket.h:
 ../Core/Inc/Lcd.h:
 ../Core/Inc/main.h:
 ../Core/Inc/modbus.h:

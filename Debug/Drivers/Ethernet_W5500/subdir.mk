@@ -6,18 +6,21 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
 ../Drivers/Ethernet_W5500/socket.c \
+../Drivers/Ethernet_W5500/tcp_client.c \
 ../Drivers/Ethernet_W5500/tcp_server.c \
 ../Drivers/Ethernet_W5500/wizchip_conf.c \
 ../Drivers/Ethernet_W5500/wizchip_port.c 
 
 OBJS += \
 ./Drivers/Ethernet_W5500/socket.o \
+./Drivers/Ethernet_W5500/tcp_client.o \
 ./Drivers/Ethernet_W5500/tcp_server.o \
 ./Drivers/Ethernet_W5500/wizchip_conf.o \
 ./Drivers/Ethernet_W5500/wizchip_port.o 
 
 C_DEPS += \
 ./Drivers/Ethernet_W5500/socket.d \
+./Drivers/Ethernet_W5500/tcp_client.d \
 ./Drivers/Ethernet_W5500/tcp_server.d \
 ./Drivers/Ethernet_W5500/wizchip_conf.d \
 ./Drivers/Ethernet_W5500/wizchip_port.d 
@@ -30,7 +33,7 @@ Drivers/Ethernet_W5500/%.o Drivers/Ethernet_W5500/%.su Drivers/Ethernet_W5500/%.
 clean: clean-Drivers-2f-Ethernet_W5500
 
 clean-Drivers-2f-Ethernet_W5500:
-	-$(RM) ./Drivers/Ethernet_W5500/socket.cyclo ./Drivers/Ethernet_W5500/socket.d ./Drivers/Ethernet_W5500/socket.o ./Drivers/Ethernet_W5500/socket.su ./Drivers/Ethernet_W5500/tcp_server.cyclo ./Drivers/Ethernet_W5500/tcp_server.d ./Drivers/Ethernet_W5500/tcp_server.o ./Drivers/Ethernet_W5500/tcp_server.su ./Drivers/Ethernet_W5500/wizchip_conf.cyclo ./Drivers/Ethernet_W5500/wizchip_conf.d ./Drivers/Ethernet_W5500/wizchip_conf.o ./Drivers/Ethernet_W5500/wizchip_conf.su ./Drivers/Ethernet_W5500/wizchip_port.cyclo ./Drivers/Ethernet_W5500/wizchip_port.d ./Drivers/Ethernet_W5500/wizchip_port.o ./Drivers/Ethernet_W5500/wizchip_port.su
+	-$(RM) ./Drivers/Ethernet_W5500/socket.cyclo ./Drivers/Ethernet_W5500/socket.d ./Drivers/Ethernet_W5500/socket.o ./Drivers/Ethernet_W5500/socket.su ./Drivers/Ethernet_W5500/tcp_client.cyclo ./Drivers/Ethernet_W5500/tcp_client.d ./Drivers/Ethernet_W5500/tcp_client.o ./Drivers/Ethernet_W5500/tcp_client.su ./Drivers/Ethernet_W5500/tcp_server.cyclo ./Drivers/Ethernet_W5500/tcp_server.d ./Drivers/Ethernet_W5500/tcp_server.o ./Drivers/Ethernet_W5500/tcp_server.su ./Drivers/Ethernet_W5500/wizchip_conf.cyclo ./Drivers/Ethernet_W5500/wizchip_conf.d ./Drivers/Ethernet_W5500/wizchip_conf.o ./Drivers/Ethernet_W5500/wizchip_conf.su ./Drivers/Ethernet_W5500/wizchip_port.cyclo ./Drivers/Ethernet_W5500/wizchip_port.d ./Drivers/Ethernet_W5500/wizchip_port.o ./Drivers/Ethernet_W5500/wizchip_port.su
 
 .PHONY: clean-Drivers-2f-Ethernet_W5500
 

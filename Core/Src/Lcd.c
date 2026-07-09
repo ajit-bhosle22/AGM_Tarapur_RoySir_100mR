@@ -13,6 +13,9 @@
 #include <math.h>
 #include "main.h"
 #include "main_global.h"
+#include "socket.h"
+#include "wizchip_conf.h"
+#include "wizchip_port.h"
 #include "Lcd.h"
 #include "AT24CM01_Eeprom.h"
 #include "modbus.h"
@@ -24,12 +27,28 @@
 #include "DAC_Drvr.h"
 
 #define EPSILON             0.0001f
-#define SYSTEM_MENU_OPTION  20
+#define SYSTEM_MENU_OPTION  22
 
 typedef enum {
     CALIBRATION_MENU,
     CALIBRATION_FACTOR_EDIT
 } calibration_screen_state_t;
+
+typedef enum
+{
+    ETH_STATE_MENU_PC = 0,
+    ETH_STATE_PORT_PC,
+    ETH_STATE_IP_PC,
+	ETH_STATE_NONE_PC
+} eth_state_pc_t;
+
+typedef enum
+{
+    ETH_MENU_PORT_PC,
+    ETH_MENU_IP_PC,
+	ETH_MENU_EXIT_PC,
+    ETH_MENU_MAX_PC
+} eth_menu_pc_t;
 
 typedef enum
 {
@@ -85,6 +104,13 @@ typedef enum
 	RTC_MENU_MAX,
 }rtc_menu_t;
 
+char *eth_menu_str_pc[] =
+{
+    "1. Port",
+    "2. IP",
+    "3. Exit"
+};
+
 char *eth_menu_str[] =
 {
     "1. Slave ID",
@@ -109,18 +135,29 @@ char *rtc_menu_str[] =
 	"3. Exit"
 };
 
+
+/* ---------- ETH SETTINGS (FOR PC) ---------------*/
+eth_state_pc_t eth_state_pc      = ETH_STATE_MENU_PC;
+eth_state_pc_t prev_eth_state_pc = ETH_STATE_NONE_PC;
+
+eth_menu_pc_t eth_menu_pc        = ETH_MENU_PORT_PC;
+eth_menu_pc_t prev_eth_menu_pc   = ETH_MENU_MAX_PC;
+
+/* ----------ETH SETTINGS (FOR DEVICE) ------------*/
 eth_state_t eth_state = ETH_STATE_MENU;
 eth_state_t prev_eth_state = ETH_STATE_NONE;
 
 eth_menu_t eth_menu = ETH_MENU_SLAVE_ID;
 eth_menu_t prev_eth_menu = ETH_MENU_MAX;
 
+/* ------------RS485 SETTINGS---------------------*/
 rs485_menu_t rs485_menu = rs485_menu_slave_id;
 rs485_menu_t prev_rs485_menu = rs485_menu_max;
 
 rs485_state_t rs485_state = rs485_state_menu;
 rs485_state_t prev_rs485_state = rs485_state_none;
 
+/* -------------RTC SETTINGS----------------------*/
 rtc_menu_t rtc_menu =  RTC_MENU_DATE;
 rtc_menu_t prev_rtc_menu = RTC_MENU_MAX;
 
@@ -198,6 +235,11 @@ uint8_t temp_save_setting_mode = 0;
 
 char temp_read_sd_str[8] = "1. No";
 char prev_temp_read_sd_str[8]="";
+uint8_t temp_read_sd = 0;
+uint8_t read_sd = 0;
+
+char temp_sdmode_str[12] = "1. RTU";
+char prev_temp_sdmode_str[12]="";
 uint8_t temp_sd_mode = 0;
 uint8_t sd_mode = 0;
 
@@ -222,7 +264,7 @@ char entered_password[5];
 
 static char* Unit_Str_Options[]={"mR/h ","uSv/h  ","cps  ","cpm  "};
 
-// ------------------- ETHERNET SCREEN -------------------------------
+/* --------------- ETHERNET SCREEN (FOR DEVICE)------------------------*/
 char eth_slave_id[4]   = "001";
 char rs485_slave_id[4] = "001";
 char eth_port[5]       = "0000";
@@ -235,6 +277,11 @@ uint8_t num_cursor = 0;
 uint8_t eth_ip_cursor  = 0;
 char prev_val[10] = "";
 char prev_ip[20] = "";
+
+/* --------------ETHERNET SCREEN (FOR PC)------------------------------*/
+char eth_port_pc[5]       = "0000";
+char eth_ip_pc[16]        = "192.168.001.010";
+
 
 // ------------------ CALIBRATION SCREEN ------------------------------
 calibration_screen_state_t calibration_state = CALIBRATION_MENU;
@@ -264,12 +311,16 @@ uint8_t max_4_20_unit = 0;
 char max_4_20_val[8] = "0000.00";
 uint8_t agm_mode = 0;
 
-// ---------------Saved ETH---------------------
+// ---------------Saved ETH (FOR DEVICE)---------------------
 char saved_eth_slave_id[6] = "001";
 char saved_eth_port[6]     = "0000";
 char saved_eth_ip[16]      = "192.168.001.010";
 char saved_eth_subnet[16]  = "255.255.255.000";
 char saved_eth_gateway[16] = "192.168.001.001";
+
+// --------------Saved ETH (FOR PC)-------------------------
+char saved_eth_port_pc[6]     = "0000";
+char saved_eth_ip_pc[16]      = "192.168.001.010";
 
 // --------------Saved Calibration--------------
 char saved_factor_values[4][6] = {"00.00","00.00","00.00","00.00"};
@@ -285,6 +336,8 @@ char  temp_rtc_time_val[9] = "00.00.00";
 char  rtc_time_val[9] = "00.00.00";
 char  prev_temp_rtc_time_val[9]="";
 uint8_t rtc_cursor = 0;
+
+volatile uint8_t saved_sn_ir = 0;
 
 uint8_t unit_is_integer(uint8_t unit)
 {
@@ -328,6 +381,7 @@ bool check_calib_fact_change(void)
 
 void calib_factors_hv_write(void)
 {
+	hv_val_dtc     = atof(temp_hv_write);
 	bool is_freq_edit = false;
 	bool is_calib_edit = false;
 	bool is_hv_edit = false;
@@ -431,6 +485,10 @@ void verify_tcp_rs485_conf(void)
 		tcp_reconfig_required = true;
 	}
 
+	if(strcmp(eth_port_pc,saved_eth_port_pc) !=0 || strcmp(saved_eth_ip_pc,eth_ip_pc) !=0)
+	{
+		tcp_reconfig_required_pc = true;
+	}
 }
 
 void dac_config(void){
@@ -597,7 +655,7 @@ void set_configuration(void)
 	cpy_reg_to_eeprom_reg();
 	Save_Config_To_Eeprom();
 	conf_rs485_tcp();
-	if(temp_sd_mode == 1)
+	if(temp_read_sd == 1)
 	{
 		read_sd_flag = true;
 	}
@@ -606,13 +664,15 @@ void set_configuration(void)
 // --------------Saved Temp Variables-------------
 void copy_temp_to_saved_values(void)
 {
-	hv_val_dtc   = atof(temp_hv_write);
+//	hv_val_dtc     = atof(temp_hv_write);
 
-	audio_mode = temp_audio_mode;
-	agm_mode = temp_agm_mode;
-	primary_unit = temp_primary_unit;
+	audio_mode     = temp_audio_mode;
+	agm_mode       = temp_agm_mode;
+	primary_unit   = temp_primary_unit;
 	freq_recv_mode = temp_freq_recv_mode;
 	freq_dtc_mode  = temp_freq_dtc_mode;
+	read_sd        = temp_read_sd;
+	sd_mode        = temp_sd_mode;
 
 	if(strcmp(rs485_slave_id,saved_rs485_slave_id)!=0)
 	{
@@ -633,11 +693,16 @@ void copy_temp_to_saved_values(void)
 	max_4_20_unit = temp_4_20_max_unit;
 	strcpy(max_4_20_val,temp_4_20_max_val);
 
+	// ---------ETH (FOR DEVICE)---------
 	strcpy(saved_eth_slave_id,eth_slave_id);
 	strcpy(saved_eth_port,eth_port);
 	strcpy(saved_eth_ip,eth_ip);
 	strcpy(saved_eth_subnet,eth_subnet);
 	strcpy(saved_eth_gateway,eth_gateway);
+
+	//  --------ETH (FOR PC)--------------
+	strcpy(saved_eth_port_pc,eth_port_pc);
+	strcpy(saved_eth_ip_pc,eth_ip_pc);
 
 	//  ---------- Passsword Saved--------------
 	strcpy(correct_password,temp_password);
@@ -646,7 +711,7 @@ void copy_temp_to_saved_values(void)
 	strcpy(cal_20mA_val,temp_4_20_max_cal_val);
 }
 
-// --------------Copy To Temp Variables-------------
+// --------------Copy Save Val To Temp Variables-------------
 void copy_saved_values_to_temp(void)
 {
 	strcpy(temp_hv_write, "0000.00");
@@ -683,10 +748,33 @@ void copy_saved_values_to_temp(void)
 	strcpy(eth_subnet,saved_eth_subnet);
 	strcpy(eth_gateway,saved_eth_gateway);
 
-	sprintf(factor_values[0], "%05.2f", atof(Factor1_Value));
-	sprintf(factor_values[1], "%05.2f", atof(Factor2_Value));
-	sprintf(factor_values[2], "%05.2f", atof(Factor3_Value));
-	sprintf(factor_values[3], "%05.2f", atof(Factor4_Value));
+	strcpy(eth_port_pc,saved_eth_port_pc);
+	strcpy(eth_ip_pc,saved_eth_ip_pc);
+
+	uint32_t k = Modbus_Registers.CALIB_FACTOR1;
+	uint32_t int_part  = k / 100;
+	uint32_t frac_part = k % 100;
+	snprintf(factor_values[0], sizeof(factor_values[0]), "%02lu.%02lu", int_part, frac_part);
+
+	k         = Modbus_Registers.CALIB_FACTOR2;
+    int_part  = k / 100;
+    frac_part = k % 100;
+    snprintf(factor_values[1], sizeof(factor_values[1]), "%02lu.%02lu", int_part, frac_part);
+
+	k        = Modbus_Registers.CALIB_FACTOR3;
+	int_part  = k / 100;
+	frac_part = k % 100;
+	snprintf(factor_values[2], sizeof(factor_values[2]), "%02lu.%02lu", int_part, frac_part);
+
+	k        = Modbus_Registers.CALIB_FACTOR4;
+	int_part  = k / 100;
+	frac_part = k % 100;
+	snprintf(factor_values[3], sizeof(factor_values[3]), "%02lu.%02lu", int_part, frac_part);
+
+	//	sprintf(factor_values[0], "%05.2f", atof(Factor1_Value));
+	//	sprintf(factor_values[1], "%05.2f", atof(Factor2_Value));
+	//	sprintf(factor_values[2], "%05.2f", atof(Factor3_Value));
+	//	sprintf(factor_values[3], "%05.2f", atof(Factor4_Value));
 
 	//  ---------- Retain Passsword --------------
 	strcpy(temp_password,correct_password);
@@ -697,27 +785,29 @@ void copy_saved_values_to_temp(void)
 	HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 
 	snprintf(temp_rtc_time_val,
-	         sizeof(temp_rtc_time_val),
-	         "%02d.%02d.%02d",
-	         sTime.Hours,
-	         sTime.Minutes,
-	         sTime.Seconds);
+			sizeof(temp_rtc_time_val),
+			"%02d.%02d.%02d",
+			sTime.Hours,
+			sTime.Minutes,
+			sTime.Seconds);
 	snprintf(rtc_time_val,
-		         sizeof(rtc_time_val),
-		         "%02d.%02d.%02d",
-		         sTime.Hours,
-		         sTime.Minutes,
-		         sTime.Seconds);
+			sizeof(rtc_time_val),
+			"%02d.%02d.%02d",
+			sTime.Hours,
+			sTime.Minutes,
+			sTime.Seconds);
 
 	snprintf(temp_rtc_date_val, sizeof(temp_rtc_date_val),
-	         "%02d.%02d.%04d",
-	         sDate.Date, sDate.Month, 2000 + sDate.Year);
+			"%02d.%02d.%04d",
+			sDate.Date, sDate.Month, 2000 + sDate.Year);
 
 	snprintf(rtc_date_val, sizeof(rtc_date_val),
-	         "%02d.%02d.%04d",
-	         sDate.Date, sDate.Month, 2000 + sDate.Year);
+			"%02d.%02d.%04d",
+			sDate.Date, sDate.Month, 2000 + sDate.Year);
 
 	temp_sd_mode = sd_mode;
+
+	temp_read_sd = read_sd;
 }
 
 void select_hv_val(char* val)
@@ -849,12 +939,57 @@ void lcd_freq_recv_screen(void)
 	}
 }
 
+void lcd_read_sd_mode_init(void)
+{
+	lcd_clear();
+	lcd_cursor_off();
+	lcd_set_cursor(0,0);
+	lcd_print("    READ MODE   ");
+	lcd_set_cursor(1,4);
+}
+
+void lcd_read_sd_mode(void)
+{
+	if(prev_lcd_screen != System_Read_Mode)
+	{
+		prev_lcd_screen = System_Read_Mode;
+		lcd_read_sd_mode_init();
+		prev_temp_sdmode_str[0] = '\0';
+	}
+	check_switch_status();
+
+	if(sw1_press_flag == true || sw2_press_flag == true)
+	{
+		sw1_press_flag = false;
+		sw2_press_flag = false;
+		temp_sd_mode ^= 1;
+		strcpy(temp_sdmode_str,
+				temp_sd_mode ? "2. TCP/IP" : "1. RTU");
+	}
+
+	if(sw3_press_flag == true)
+	{
+		sw3_press_flag = false;
+		prev_lcd_screen = System_Read_Mode;
+		lcd_screen = Setup_Menu_Screen;
+	}
+
+	if(strcmp(temp_sdmode_str,prev_temp_sdmode_str)!=0)
+	{
+		lcd_set_cursor(1,4);
+		lcd_print("                ");
+		lcd_set_cursor(1,4);
+		lcd_print(temp_sdmode_str);
+		strcpy(prev_temp_sdmode_str,temp_sdmode_str);
+	}
+}
+
 void lcd_read_sd_data_init(void)
 {
 	lcd_clear();
 	lcd_cursor_off();
 	lcd_set_cursor(0,0);
-	lcd_print("    READ   ");
+	lcd_print("      READ   ");
 	lcd_set_cursor(1,4);
 }
 
@@ -872,9 +1007,9 @@ void lcd_read_sd_data(void)
 	{
 		sw1_press_flag = false;
 		sw2_press_flag = false;
-		temp_sd_mode ^= 1;
+		temp_read_sd ^= 1;
 		strcpy(temp_read_sd_str,
-				temp_sd_mode ? "2. Yes" : "1. No");
+				temp_read_sd ? "2. Yes" : "1. No");
 	}
 
 	if(sw3_press_flag == true)
@@ -947,7 +1082,6 @@ void lcd_hv_write_screen_init(void)
     lcd_print("    HV Write   ");
     strcpy(prev_temp_hv_write, "");
     lcd_set_cursor(1, 4);
-    lcd_print(temp_hv_write);
     edit_pos_index_hv = 0;
 }
 
@@ -1341,6 +1475,7 @@ void lcd_save_setting_screen(void)
 		if(temp_save_setting_mode == 0)     // save Setting : Yes
 		{
 			set_configuration();
+//			refresh_lcd();
 		}
 		prev_lcd_screen = System_Save_Setting_Screen;
 		lcd_screen = Setup_Menu_Screen;
@@ -1844,6 +1979,40 @@ void select_ip_value(char *ip)
     lcd_set_cursor(1, eth_ip_cursor);
 }
 
+void lcd_ip_edit_screen_pc(char *title, char *ip)
+{
+	static uint8_t init = 0;
+
+	if(!init)
+	{
+		lcd_clear();
+		lcd_set_cursor(0,0);
+		eth_state_pc = ETH_STATE_IP_PC;
+		lcd_print(title);
+		init          = 1;
+		eth_ip_cursor = 0;
+		lcd_cursor_on();
+		strcpy(prev_ip,"");
+	}
+
+	check_switch_status();
+	select_ip_value(ip);
+
+	if(sw5_press_flag  == true)
+	{
+		sw5_press_flag = false;
+	}
+
+	if(sw3_press_flag)
+	{
+		sw3_press_flag    = false;
+		init              = 0;
+		prev_eth_state_pc = ETH_STATE_IP_PC;
+		eth_state_pc      = ETH_STATE_MENU_PC;
+		lcd_cursor_off();
+	}
+}
+
 void lcd_ip_edit_screen(char *title, char *ip)
 {
 	static uint8_t init = 0;
@@ -1903,6 +2072,40 @@ void lcd_ip_edit_screen(char *title, char *ip)
 	}
 }
 
+void lcd_numeric_edit_screen_pc(char *title, char *value)
+{
+	static uint8_t init = 0;
+
+	if(!init)
+	{
+		lcd_clear();
+		lcd_set_cursor(0,0);
+		eth_state_pc = ETH_STATE_PORT_PC;
+		lcd_print(title);
+		init = 1;
+		num_cursor = 0;
+		lcd_cursor_on();
+		strcpy(prev_val,"");
+	}
+
+	check_switch_status();
+	select_value(value);
+
+	if(sw5_press_flag  == true)
+	{
+		sw5_press_flag = false;
+	}
+
+	if(sw3_press_flag)
+	{
+		sw3_press_flag = false;
+		init = 0;
+		prev_eth_state_pc = ETH_STATE_PORT_PC;
+		eth_state_pc = ETH_STATE_MENU_PC;
+		lcd_cursor_off();
+	}
+}
+
 void lcd_numeric_edit_screen(char *title, char *value)
 {
 	static uint8_t init = 0;
@@ -1957,7 +2160,7 @@ void lcd_ethernet_screen_init(void)
 	lcd_clear();
 	lcd_cursor_off();
 	lcd_set_cursor(0,0);
-	lcd_print("     ETH SET   ");
+	lcd_print("     EHT SET   ");
 	lcd_cursor_off();
 	prev_eth_menu = ETH_MENU_MAX;
 }
@@ -2056,6 +2259,96 @@ void lcd_ethernet_screen(void)
             lcd_ip_edit_screen("    GATEWAY ", eth_gateway);
             break;
     }
+}
+
+void lcd_ethernet_screen_init_pc(void)
+{
+	lcd_clear();
+	lcd_cursor_off();
+	lcd_set_cursor(0,0);
+	lcd_print("  PC  EHT SET   ");
+	lcd_cursor_off();
+	prev_eth_menu_pc = ETH_MENU_MAX_PC;
+}
+
+void eth_menu_screen_PC(void)
+{
+	if(prev_eth_state_pc != eth_state_pc)
+	{
+		lcd_ethernet_screen_init_pc();
+		prev_eth_state_pc = eth_state_pc;
+	}
+
+	check_switch_status();
+
+	if(sw4_press_flag == true)
+	{
+		sw4_press_flag = false;
+	}
+
+	if(sw5_press_flag  == true)
+	{
+		sw5_press_flag = false;
+	}
+
+	if(sw1_press_flag)
+	{
+		sw1_press_flag = false;
+		eth_menu_pc = (eth_menu_pc + 1) % ETH_MENU_MAX_PC;
+	}
+
+	if(sw2_press_flag)
+	{
+		sw2_press_flag = false;
+		eth_menu_pc = (eth_menu_pc == 0) ? ETH_MENU_MAX_PC - 1 : eth_menu_pc - 1;
+	}
+
+	if(sw3_press_flag)
+	{
+		sw3_press_flag = false;
+
+		switch(eth_menu_pc)
+		{
+		case ETH_MENU_PORT_PC:     eth_state_pc = ETH_STATE_PORT_PC;    break;
+		case ETH_MENU_IP_PC:       eth_state_pc = ETH_STATE_IP_PC;      break;
+		case ETH_MENU_EXIT_PC:
+			eth_state_pc      = ETH_STATE_MENU_PC;
+			eth_menu_pc       = ETH_MENU_PORT_PC;
+			prev_eth_state_pc = ETH_STATE_NONE_PC;
+
+			lcd_screen      = Setup_Menu_Screen;
+			prev_lcd_screen = PC_Ethernet_Setting_Screen;
+			return;
+		}
+
+	}
+
+	if(prev_eth_menu_pc != eth_menu_pc)
+	{
+		lcd_set_cursor(1,0);
+		lcd_print("                ");
+		lcd_set_cursor(1,0);
+		lcd_print(eth_menu_str_pc[eth_menu_pc]);
+		prev_eth_menu_pc = eth_menu_pc;
+	}
+}
+
+void lcd_ethernet_screen_PC(void)
+{
+	switch(eth_state_pc)
+	{
+	case ETH_STATE_MENU_PC:
+		eth_menu_screen_PC();
+		break;
+
+	case ETH_STATE_PORT_PC:
+		lcd_numeric_edit_screen_pc("      PORT   ", eth_port_pc);
+		break;
+
+	case ETH_STATE_IP_PC:
+		lcd_ip_edit_screen_pc("      IP    ", eth_ip_pc);
+		break;
+	}
 }
 
 void rtc_menu_screen_init(void)
@@ -2725,8 +3018,10 @@ void select_lcd_screen(void)
 		case 16: lcd_screen = System_Freq_Dtc_Screen;     break;
 		case 17: lcd_screen = System_Rtc_Screen;          break;
 		case 18: lcd_screen = Modify_Password_Screen;     break;
-		case 19: lcd_screen = System_Read_Data;           break;
-		case 20: lcd_screen = System_Save_Setting_Screen; break;
+		case 19: lcd_screen = PC_Ethernet_Setting_Screen; break;
+		case 20: lcd_screen = System_Read_Data;           break;
+		case 21: lcd_screen = System_Read_Mode;           break;
+		case 22: lcd_screen = System_Save_Setting_Screen; break;
 		default: lcd_screen = Set_Unit_Screen;            break;
 	}
 }
@@ -2811,8 +3106,10 @@ void lcd_setup_menu_screen(void)
 		case 16:  lcd_print("17. Dtc Freq");      break;
 		case 17:  lcd_print("18. Set Time");      break;
 		case 18:  lcd_print("19. Set Password");  break;
-		case 19:  lcd_print("20. Read Data");     break;
-		case 20:  lcd_print("21. Save Set");      break;
+		case 19:  lcd_print("20. PC EHT SET");    break;
+		case 20:  lcd_print("21. Read Data");     break;
+		case 21:  lcd_print("22. Read Mode");     break;
+		case 22:  lcd_print("23. Save Set");      break;
 		}
 	}
 }
@@ -3023,6 +3320,8 @@ void lcd_home_screen_update(uint32_t cps, uint16_t unit_mode)
 		lcd_print("     ");
 		lcd_set_cursor(1, 10);
 		lcd_print(unit);
+        lcd_set_cursor(1,2);
+        lcd_print("       ");
 
 		last_unit = unit_mode;
 	}
@@ -3045,15 +3344,14 @@ void lcd_home_screen_update(uint32_t cps, uint16_t unit_mode)
 
 	if(unit_mode == 2)       //cps
 	{
-		snprintf(str, sizeof(str), "%06ld", cps);
+		snprintf(str, sizeof(str), "%06lu", cps);
 	}
 	else if(unit_mode == 3)  //cpm
 	{
-		snprintf(str, sizeof(str), "%06ld", cpm);
+		snprintf(str, sizeof(str), "%06lu", cpm);
 	}
 	else{
 		//			snprintf(str, sizeof(str), "%07.2f", dose);
-
 		uint32_t dose_x100 = (uint32_t)(dose * 100.0f + 0.5f);
 		snprintf(str, sizeof(str),
 				"%04lu.%02lu",
@@ -3235,8 +3533,14 @@ void system_lcd_screen(void)
    case Modify_Password_Screen:
 	    lcd_modify_password_screen();
 	    break;
+   case PC_Ethernet_Setting_Screen:
+	    lcd_ethernet_screen_PC();
+	    break;
    case System_Read_Data:
 	    lcd_read_sd_data();
+	    break;
+   case System_Read_Mode:
+	    lcd_read_sd_mode();
 	    break;
    case System_Save_Setting_Screen:
 	    lcd_save_setting_screen();
@@ -3336,19 +3640,6 @@ void LCD_EnablePulse() {
 
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	if (GPIO_Pin == GPIO_PIN_8) {
-
-		Ack_Button = 1;
-	}
-
-	if( GPIO_Pin == GPIO_PIN_9)
-	{
-		Reset_Button = 1;
-	}
-}
-
 void refresh_lcd(void)
 {
 	// --------for refreshing lcd------
@@ -3358,7 +3649,8 @@ void refresh_lcd(void)
 	strcpy(prev_temp_audio_mode_str,"");
     strcpy(prev_temp_freq_recv_str,"");
     strcpy(prev_temp_freq_dtc_str,"");
-
+    strcpy(prev_temp_sdmode_str,"");
+    strcpy(prev_temp_read_sd_str,"");
 
 	// ---------Newly Added------------
 	prev_temp_alarm_unit = 0xff;
@@ -3385,4 +3677,62 @@ void refresh_lcd(void)
 
 	strcpy(prev_temp_rtc_date_val,"");
 	strcpy(prev_temp_rtc_time_val,"");
+
+	last_unit       = 0xFFFF;
+	prev_lcd_screen = 0xff;
+
+}
+
+void display_server_failed_status(void)
+{
+	lcd_clear();
+	lcd_cursor_off();
+	lcd_set_cursor(0,0);
+	lcd_print("  CNT TIMEOUT ");
+	HAL_Delay(3000);
+	refresh_lcd();
+}
+
+void display_server_wait(void)
+{
+	lcd_clear();
+	lcd_cursor_off();
+	lcd_set_cursor(0,0);
+	lcd_print("WAIT SERVER CNT");
+}
+
+void display_data_writing(void)
+{
+	lcd_clear();
+	lcd_cursor_off();
+	lcd_set_cursor(0,0);
+	lcd_print("  DATA WRITING  ");
+}
+
+void display_data_writing_done(void)
+{
+	lcd_clear();
+	lcd_cursor_off();
+	lcd_set_cursor(0,0);
+	lcd_print("  WRITING DONE");
+	HAL_Delay(2000);
+	refresh_lcd();
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if (GPIO_Pin == GPIO_PIN_8) {
+
+		Ack_Button = 1;
+	}
+
+	if( GPIO_Pin == GPIO_PIN_9)
+	{
+		Reset_Button = 1;
+	}
+
+	if(GPIO_Pin == W5500_INT_Pin)
+	{
+		W5500_Process_Interrupts_flag = true;
+	}
 }

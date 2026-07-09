@@ -28,25 +28,29 @@ typedef struct
 	uint16_t Ethernet_Gateway_LSB;            //Addr15
 	uint16_t Ethernet_Slave_Id;               //Addr16
 	uint16_t Ethernet_Port;                   //Addr17
-	uint16_t Overload_MSB;                    //Addr18
-	uint16_t Overload_LSB;                    //Addr19
-	uint16_t Overload_Unit;                   //Addr20
-	uint16_t Overrange_MSB;                   //Addr21
-	uint16_t Overrange_LSB;                   //Addr22
-	uint16_t Overrange_Unit;                  //Addr23
-	uint16_t Analog_4_to_20mA_Min_MSB;        //Addr24
-	uint16_t Analog_4_to_20mA_Min_LSB;        //Addr25
-	uint16_t Analog_4_to_20mA_Min_Unit;       //Addr26
-	uint16_t Analog_4_to_20mA_Max_MSB;        //Addr27
-	uint16_t Analog_4_to_20mA_Max_LSB;        //Addr28
-	uint16_t Analog_4_to_20mA_Max_Unit;       //Addr29
-	uint16_t CAL_4_20MA_FACTA_MSB;            //Addr30
-	uint16_t CAL_4_20MA_FACTA_LSB;            //Addr31
-	uint16_t CAL_4_20MA_FACTB_MSB;            //Addr32
-	uint16_t CAL_4_20MA_FACTB_LSB;            //Addr33
-	uint16_t FREQ_RECV;                       //Addr34
-	uint16_t FREQ_DTC;                        //Addr35
-	uint16_t MAGIC_NUMBER;                    //Addr36
+	uint16_t Ethernet_IP_MSB_PC;              //Addr18
+	uint16_t Ethernet_IP_LSB_PC;              //Addr19
+	uint16_t Ethernet_Port_PC;                //Addr20
+	uint16_t Overload_MSB;                    //Addr21
+	uint16_t Overload_LSB;                    //Addr22
+	uint16_t Overload_Unit;                   //Addr23
+	uint16_t Overrange_MSB;                   //Addr24
+	uint16_t Overrange_LSB;                   //Addr25
+	uint16_t Overrange_Unit;                  //Addr26
+	uint16_t Analog_4_to_20mA_Min_MSB;        //Addr27
+	uint16_t Analog_4_to_20mA_Min_LSB;        //Addr28
+	uint16_t Analog_4_to_20mA_Min_Unit;       //Addr29
+	uint16_t Analog_4_to_20mA_Max_MSB;        //Addr30
+	uint16_t Analog_4_to_20mA_Max_LSB;        //Addr31
+	uint16_t Analog_4_to_20mA_Max_Unit;       //Addr32
+	uint16_t CAL_4_20MA_FACTA_MSB;            //Addr33
+	uint16_t CAL_4_20MA_FACTA_LSB;            //Addr34
+	uint16_t CAL_4_20MA_FACTB_MSB;            //Addr35
+	uint16_t CAL_4_20MA_FACTB_LSB;            //Addr36
+	uint16_t FREQ_RECV;                       //Addr37
+	uint16_t FREQ_DTC;                        //Addr38
+    uint16_t SD_MODE;                         //Addr39
+	uint16_t MAGIC_NUMBER;                    //Addr40
 } __attribute__((packed)) device_config_t;
 
 

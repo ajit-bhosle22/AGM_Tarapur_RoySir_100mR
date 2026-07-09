@@ -25,12 +25,16 @@ extern volatile one_sec_flags_t g_1s_flags;
 extern volatile uint8_t relay_status ;
 extern volatile uint8_t prev_relay_status ;
 extern volatile bool Alarm_OneSec_Generated;
+extern volatile bool g_sd_present;
+extern volatile uint32_t recv_pulse_per_sec;
 extern bool sw5_press_flag ;
+
 extern RTC_HandleTypeDef hrtc;
 extern DAC_HandleTypeDef hdac1;
 extern SPI_HandleTypeDef hspi4;
 extern TIM_HandleTypeDef htim3;
 extern I2C_HandleTypeDef hi2c4;
+extern SPI_HandleTypeDef hspi3;
 
 void RTC_SetDefaultTimeDate(void);
 

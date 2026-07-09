@@ -108,18 +108,24 @@ static void MX_UART7_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
+void Disable_All_IRQs_Except_SysTick(void);
+void Restore_All_IRQs(void);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+uint32_t saved_iser[8];
 UART_HandleTypeDef LOG_UART;
 volatile one_sec_flags_t g_1s_flags = {false};
 SPI_HandleTypeDef W5500_SPI;
 volatile bool Alarm_OneSec_Generated = false;
 volatile uint8_t relay_status = 0xff;
 volatile uint8_t  prev_relay_status = 0xff;
-
+volatile bool g_sd_present = false;
+volatile uint32_t recv_pulse_cnt = 0;
+volatile uint32_t recv_pulse_per_sec = 0;
 bool sw5_press_flag = false;
 
 void check_sw5_status(void)
@@ -184,10 +190,17 @@ int main(void)
   MX_SPI1_Init();
   MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
+
 	Panel_LED_Off();
-	create_file();
-	HAL_Delay(1);
-	Logger_LoadIndex();
+	g_sd_present = create_file();
+
+	if(g_sd_present)
+	{
+		create_file();
+		HAL_Delay(1);
+		Logger_LoadIndex();
+		open_files();
+	}
 
 	// ----------------EEPROM Waiting Time-----------------------
 	HAL_Delay(500);
@@ -205,7 +218,7 @@ int main(void)
 
 	config_modbus_registers();
 	config_variables();
-	read_e4_20mA_factors();
+//	read_e4_20mA_factors();
 
 	// -----------------Initialize 7_Segment-------------------------------
 	MAX7219_Init();
@@ -258,6 +271,22 @@ int main(void)
 
 	//-------------Configure Device In Normal State------------------------
 	Handle_NormalState();
+    Modbus_Registers.Reset        = 1;
+    Modbus_Registers_PC_TCP.Reset = 1;
+
+
+	HAL_SPI_DeInit(&hspi1);
+
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+
+	HAL_SPI_Init(&hspi1);
+
+	// ----- Capture Pulses--------
+	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_4);
+
+	// -------TCP KEEP ALIVE TIMEOUT (5 sec)------------------
+	setRTR(2000);
+    setRCR(3);
 
   /* USER CODE END 2 */
 
@@ -268,22 +297,24 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		if(read_sd_flag == true)
+
+		if(read_sd_flag)
 		{
-          modbus_task_sd();
-          read_sd_flag = false;
+			sd_task();
 		}
 		else{
-		modbus_task_dtc();
-		modbus_task_pc();
-		system_lcd_screen();
-		e4_20mA_task();
-		tcp_task();
-		monitor_panel_unit_leds();
-		update_rtc_registers();
-		sd_card_operations();
-		Check_Fault_Conditions();
-		check_sw5_status();
+			modbus_task_dtc();
+			modbus_task_pc();
+			system_lcd_screen();
+			e4_20mA_task();
+			tcp_task();
+			monitor_panel_unit_leds();
+			update_rtc_registers();
+			if(g_sd_present){
+				sd_card_operations();
+			}
+			Check_Fault_Conditions();
+			check_sw5_status();
 		}
 	}
   /* USER CODE END 3 */
@@ -700,14 +731,15 @@ static void MX_TIM3_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_IC_InitTypeDef sConfigIC = {0};
 
   /* USER CODE BEGIN TIM3_Init 1 */
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 20000-1;
+  htim3.Init.Prescaler = 400-1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 500;
+  htim3.Init.Period = 65535;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -719,9 +751,21 @@ static void MX_TIM3_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_IC_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
+  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
+  sConfigIC.ICFilter = 0;
+  if (HAL_TIM_IC_ConfigChannel(&htim3, &sConfigIC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -965,7 +1009,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, LED_1_Pin|LED_2_Pin|SPK_1_Pin|SPK_2_Pin
+  HAL_GPIO_WritePin(GPIOE, LED_2_Pin|LED_1_Pin|SPK_1_Pin|SPK_2_Pin
                           |UART7_RE_Pin|SPI4_CS_Pin|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -984,9 +1028,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8|MC_OP5_Pin|MC_OP4_Pin|MC_OP3_Pin
                           |MC_OP2_Pin|MC_OP1_Pin|GPIO_PIN_4, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : LED_1_Pin LED_2_Pin SPK_1_Pin SPK_2_Pin
+  /*Configure GPIO pins : LED_2_Pin LED_1_Pin SPK_1_Pin SPK_2_Pin
                            UART7_RE_Pin SPI4_CS_Pin PE15 */
-  GPIO_InitStruct.Pin = LED_1_Pin|LED_2_Pin|SPK_1_Pin|SPK_2_Pin
+  GPIO_InitStruct.Pin = LED_2_Pin|LED_1_Pin|SPK_1_Pin|SPK_2_Pin
                           |UART7_RE_Pin|SPI4_CS_Pin|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -1011,11 +1055,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SW_5_Pin W5500_INT_Pin */
-  GPIO_InitStruct.Pin = SW_5_Pin|W5500_INT_Pin;
+  /*Configure GPIO pin : SW_5_Pin */
+  GPIO_InitStruct.Pin = SW_5_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(SW_5_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : W5500_INT_Pin */
+  GPIO_InitStruct.Pin = W5500_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(W5500_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED3_Pin LCD_RST_Pin LED4_Pin MC_OP6_Pin
                            SD_CS_Pin PC_UART_RE_Pin */
@@ -1072,8 +1122,8 @@ static void MX_GPIO_Init(void)
   HAL_SYSCFG_AnalogSwitchConfig(SYSCFG_SWITCH_PA1, SYSCFG_SWITCH_PA1_CLOSE);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(IP2_EXTI_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(IP2_EXTI_IRQn);
+  HAL_NVIC_SetPriority(W5500_INT_EXTI_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(W5500_INT_EXTI_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -1081,6 +1131,11 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+	recv_pulse_cnt++;
+}
 
 void RTC_SetDefaultTimeDate(void)
 {
@@ -1118,6 +1173,8 @@ void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
     g_1s_flags.rtc_poll       = true;
     g_1s_flags.log_sd_card    = true;
     Alarm_OneSec_Generated    = true;
+    recv_pulse_per_sec        = recv_pulse_cnt;
+    recv_pulse_cnt            = 0;
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){

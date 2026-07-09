@@ -44,7 +44,8 @@ Core/Src/modbus.o: ../Core/Src/modbus.c ../Core/Inc/main.h \
  ../Core/Inc/DAC_Drvr.h ../Core/Inc/fatfs_sd.h \
  ../Middlewares/Third_Party/FatFs/src/diskio.h \
  ../Middlewares/Third_Party/FatFs/src/integer.h \
- ../Middlewares/Third_Party/FatFs/src/ff.h ../FATFS/Target/ffconf.h
+ ../Middlewares/Third_Party/FatFs/src/ff.h ../FATFS/Target/ffconf.h \
+ C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/tcp_client.h
 ../Core/Inc/main.h:
 ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h:
 ../Core/Inc/stm32h7xx_hal_conf.h:
@@ -100,3 +101,4 @@ Core/Src/modbus.o: ../Core/Src/modbus.c ../Core/Inc/main.h \
 ../Middlewares/Third_Party/FatFs/src/integer.h:
 ../Middlewares/Third_Party/FatFs/src/ff.h:
 ../FATFS/Target/ffconf.h:
+C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/tcp_client.h:

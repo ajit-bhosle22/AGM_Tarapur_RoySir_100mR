@@ -10,9 +10,12 @@
 #include "diskio.h"
 #include "fatfs_sd.h"
 #include "ff.h"
+#include "lcd.h"
 #include "pc_modbus.h"
 #include "modbus.h"
 #include "AT24CM01_Eeprom.h"
+#include "tcp_server_registers.h"
+#include "tcp_client.h"
 
 extern  SPI_HandleTypeDef 	hspi1;
 #define HSPI_SDCARD		 	&hspi1
@@ -33,12 +36,33 @@ static uint8_t PowerFlag = 0;				/* Power flag */
 
 uint32_t g_sequence = 0;
 uint32_t g_journal_slot = 0;
+uint32_t g_write_count = 0;
 
 FATFS fs;
+static FIL g_fil;
+static FIL g_history_fil;
+static FIL g_index_fil;
+static FIL g_read_fil;
+
+static uint32_t get_write_count(LogRecord_t *r);
+static FRESULT SaveRecoveredIndex(void);
 
 /***************************************
  * SPI functions
  **************************************/
+
+typedef struct {
+    uint32_t magic;      // 0xDEADBEEF
+    uint16_t sd_index;
+    uint16_t checksum;   // simple XOR or CRC16
+} IndexFile_t;
+
+#define INDEX_MAGIC  0xDEADBEEF
+
+uint16_t Index_Checksum(uint16_t index)
+{
+    return (uint16_t)(INDEX_MAGIC ^ index);
+}
 
 /* slave select */
 static void SELECT(void)
@@ -100,156 +124,297 @@ void sd_card_operations(void)
 	}
 }
 
-void create_file(void)
+bool create_file(void)
 {
-	FRESULT fres;
-	FILINFO fno;
-
-	fres = f_mount(&fs, "", 1);
-
-	printf("f_mount = %d\r\n", fres);
-
-	if(fres != FR_OK)
-	{
-		printf("Mount Failed\r\n");
-		return ;
-	}
-
-	FIL fil;
-	UINT bw;
-
-	fres = f_stat("history.bin", &fno);
-	printf("f_stat = %d\r\n", fres);
-	printf("File Size = %lu\r\n", (uint32_t)fno.fsize);
-	printf("Record Size = %u\r\n", sizeof(LogRecord_t));
-
-	if(fres != FR_OK)
-	{
-		printf("Creating history.bin\r\n");
-
-		fres = f_open(&fil,
-				"history.bin",
-				FA_CREATE_ALWAYS | FA_WRITE);
-
-		printf("f_open = %d\r\n", fres);
-
-		if(fres == FR_OK)
-		{
-			uint32_t file_size = 500 * sizeof(sd_logs);
-
-			fres = f_lseek(&fil, file_size - 1);
-
-			printf("f_lseek = %d\r\n", fres);
-
-			uint8_t dummy = 0;
-
-			fres = f_write(&fil,
-					&dummy,
-					1,
-					&bw);
-
-			printf("f_write = %d\r\n", fres);
-			printf("Bytes Written = %u\r\n", bw);
-
-			f_close(&fil);
-		}
-	}
-	else
-	{
-		printf("history.bin already exists\r\n");
-		printf("File Size = %lu\r\n", (uint32_t)fno.fsize);
-	}
-}
-
-FRESULT Logger_LoadIndex(void)
-{
-    FIL fil;
-    UINT br;
     FRESULT fres;
+    FILINFO fno;
 
-    fres = f_open(&fil, INDEX_FILE, FA_OPEN_EXISTING | FA_READ);
+    fres = f_mount(&fs, "", 1);
+    printf("f_mount = %d\r\n", fres);
 
-    if (fres == FR_NO_FILE)
+    if(fres != FR_OK)
     {
-        // First boot — create file with index 0
-        sd_index = 0;
-        return Logger_SaveIndex();
+        printf("Mount Failed\r\n");
+        return false;
     }
 
-    if (fres != FR_OK)
+    UINT bw;
+
+    uint32_t expected_size = MAX_RECORDS * sizeof(LogRecord_t);
+
+    fres = f_stat("history.bin", &fno);
+    printf("f_stat = %d\r\n", fres);
+    printf("File Size = %lu\r\n", (uint32_t)fno.fsize);
+    printf("Record Size = %u\r\n", sizeof(LogRecord_t));
+
+    if(fres != FR_OK)
+    {
+        printf("Creating history.bin\r\n");
+
+        memset(&g_history_fil, 0, sizeof(g_history_fil));
+        fres = f_open(&g_history_fil, "history.bin", FA_CREATE_ALWAYS | FA_WRITE);
+        printf("f_open = %d\r\n", fres);
+
+        if(fres == FR_OK)
+        {
+            fres = f_lseek(&g_history_fil, expected_size - 1);
+            printf("f_lseek = %d\r\n", fres);
+
+            uint8_t dummy = 0;
+            fres = f_write(&g_history_fil, &dummy, 1, &bw);
+            printf("f_write = %d\r\n", fres);
+            printf("Bytes Written = %u\r\n", bw);
+
+            f_close(&g_history_fil);
+        }
+    }
+    else
+    {
+        printf("history.bin already exists\r\n");
+        printf("File Size = %lu\r\n", (uint32_t)fno.fsize);
+    }
+    return true;
+}
+
+// Helper to combine MSB/LSB into uint32_t
+static uint32_t get_write_count(LogRecord_t *r)
+{
+    return ((uint32_t)r->WRITE_COUNT_MSB << 16) | r->WRITE_COUNT_LSB;
+}
+
+static FRESULT SaveRecoveredIndex(void)
+{
+    FRESULT fres;
+
+    fres = f_open(&g_index_fil,
+                  "index.bin",
+                  FA_OPEN_ALWAYS | FA_WRITE);
+
+    if(fres != FR_OK)
+    {
         return fres;
+    }
 
-    fres = f_read(&fil, &sd_index, sizeof(sd_index), &br);
-    f_close(&fil);
+    fres = Logger_SaveIndex();
 
-    if (br != sizeof(sd_index))
-        sd_index = 0;
-
-    // Safety clamp
-    if (sd_index >= MAX_RECORDS)
-        sd_index = 0;
+    f_close(&g_index_fil);
 
     return fres;
 }
 
+
+FRESULT Logger_RecoverIndex(void)
+{
+    FIL tmp_history_fil;
+    UINT br;
+    FRESULT fres;
+    LogRecord_t record;
+
+    static uint32_t counts[MAX_RECORDS];
+
+    fres = f_open(&tmp_history_fil,
+                  "history.bin",
+                  FA_OPEN_EXISTING | FA_READ);
+
+    if(fres != FR_OK)
+    {
+        sd_index = 0;
+        g_write_count = 0;
+        return fres;
+    }
+
+    /* Read all records and extract write_count */
+    for(uint16_t i = 0; i < MAX_RECORDS; i++)
+    {
+        fres = f_read(&tmp_history_fil,
+                      &record,
+                      sizeof(LogRecord_t),
+                      &br);
+
+        if((fres != FR_OK) ||
+           (br != sizeof(LogRecord_t)))
+        {
+            /* Partial file */
+            sd_index = i;
+
+            g_write_count =
+                    (i == 0) ?
+                    0 :
+                    (counts[i - 1] + 1);
+
+            f_close(&tmp_history_fil);
+
+            printf("Recovered (partial) sd_index = %u\r\n",
+                   sd_index);
+
+            return SaveRecoveredIndex();
+        }
+
+        counts[i] = get_write_count(&record);
+    }
+
+    f_close(&tmp_history_fil);
+
+    /* Detect circular-buffer wrap point */
+    for(uint16_t i = 0; i < (MAX_RECORDS - 1); i++)
+    {
+        /*
+         * Example:
+         * 498,499,500,501
+         * Normal difference = +1
+         *
+         * 4294967295,0
+         * Difference becomes huge due to wrap
+         */
+        if((uint32_t)(counts[i + 1] - counts[i])
+                > 0x80000000UL)
+        {
+            sd_index = i + 1;
+
+            g_write_count = counts[i] + 1;
+
+            printf("Recovered (circular) sd_index = %u\r\n",
+                   sd_index);
+
+            return SaveRecoveredIndex();
+        }
+    }
+
+    /*
+     * No wrap found.
+     * Buffer is either:
+     * 1. Completely full and wrapped exactly to slot 0
+     * 2. Contains monotonically increasing counters
+     */
+    sd_index = 0;
+    g_write_count = counts[MAX_RECORDS - 1] + 1;
+
+    printf("Recovered (full wrap) sd_index = 0\r\n");
+
+    return SaveRecoveredIndex();
+}
+
+FRESULT Logger_LoadIndex(void)
+{
+    UINT br;
+    FRESULT fres;
+    IndexFile_t idx;
+
+    fres = f_open(&g_index_fil, "index.bin", FA_OPEN_EXISTING | FA_READ);
+
+    if (fres == FR_NO_FILE)
+    {
+        sd_index      = 0;
+        g_write_count = 0;
+        f_open(&g_index_fil,
+               "index.bin",
+               FA_OPEN_ALWAYS | FA_WRITE);
+        FRESULT status = Logger_SaveIndex();
+        f_close(&g_index_fil);
+        return status;
+    }
+
+    if (fres != FR_OK) return fres;
+
+    fres = f_read(&g_index_fil, &idx, sizeof(idx), &br);
+    f_close(&g_index_fil);
+
+    if (br != sizeof(idx)              ||
+        idx.magic    != INDEX_MAGIC    ||
+        idx.checksum != Index_Checksum(idx.sd_index) ||
+        idx.sd_index >= MAX_RECORDS)
+    {
+        printf("Index corrupted! Scanning file to recover...\r\n");
+        return Logger_RecoverIndex();
+    }
+
+    sd_index = idx.sd_index;
+    printf("Loaded sd_index = %u\r\n", sd_index);
+
+    // ── ADDED: restore g_write_count by reading last written record ──
+    if(sd_index > 0)
+    {
+    	FIL tmp_fil;
+        LogRecord_t last_record;
+        UINT hbr;
+        uint16_t last_slot = sd_index - 1;  // last written slot
+
+        fres = f_open(&tmp_fil, "history.bin", FA_OPEN_EXISTING | FA_READ);
+        if(fres == FR_OK)
+        {
+            f_lseek(&tmp_fil, last_slot * sizeof(LogRecord_t));
+            f_read(&tmp_fil, &last_record, sizeof(LogRecord_t), &hbr);
+            f_close(&tmp_fil);
+
+            if(hbr == sizeof(LogRecord_t))
+            {
+                g_write_count = get_write_count(&last_record) + 1;
+                printf("Restored g_write_count = %lu\r\n", g_write_count);
+            }
+        }
+    }
+    else
+    {
+        g_write_count = 0;
+    }
+
+    return FR_OK;
+}
+
 FRESULT Logger_SaveIndex(void)
 {
-    FIL fil;
     UINT bw;
     FRESULT fres;
 
-    fres = f_open(&fil, INDEX_FILE,
-                  FA_CREATE_ALWAYS | FA_WRITE);
+    IndexFile_t idx =
+    {
+        .magic    = INDEX_MAGIC,
+        .sd_index = sd_index,
+        .checksum = Index_Checksum(sd_index)
+    };
 
-    if (fres != FR_OK)
-        return fres;
+    fres = f_lseek(&g_index_fil, 0);
 
-    fres = f_write(&fil, &sd_index, sizeof(sd_index), &bw);
-    f_close(&fil);
+    if(fres == FR_OK)
+    {
+        fres = f_write(&g_index_fil,
+                       &idx,
+                       sizeof(idx),
+                       &bw);
+        if(bw != sizeof(idx))
+        {
+            return FR_DISK_ERR;
+        }
+    }
 
+    f_sync(&g_index_fil);
     return fres;
 }
 
 FRESULT Logger_WriteRecord(LogRecord_t *record)
 {
-	FIL fil;
+
 	UINT bw;
 	FRESULT fres;
 
 	uint32_t offset =
 			sd_index * sizeof(LogRecord_t);
 
-	printf("Write Offset = %lu\r\n", offset);
+	fres = f_lseek(&g_history_fil, offset);
 
-	printf("sd_index = %u\r\n", sd_index);
-
-	fres = f_open(&fil,
-			"history.bin",
-			FA_OPEN_EXISTING | FA_WRITE);
-
-	printf("write f_open = %d\r\n", fres);
-
-	if(fres == FR_OK)
-	{
-	    printf("file_size=%lu\r\n", f_size(&fil));
-	}
 
 	if(fres != FR_OK)
-		return fres;
+	    return fres;
 
-	fres = f_lseek(&fil, offset);
-
-	printf("write f_lseek = %d\r\n", fres);
-
-	fres = f_write(&fil,
+	fres = f_write(&g_history_fil,
 			record,
 			sizeof(LogRecord_t),
 			&bw);
 
-	printf("write f_write = %d\r\n", fres);
-	printf("bw = %u\r\n", bw);
-
-	f_close(&fil);
+	if(fres == FR_OK)
+	{
+	    f_sync(&g_history_fil);
+	}
 
 	if((fres == FR_OK) &&
 			(bw == sizeof(LogRecord_t)))
@@ -269,34 +434,33 @@ FRESULT Logger_WriteRecord(LogRecord_t *record)
 FRESULT Logger_ReadRecord(uint16_t index,
                           LogRecord_t *record)
 {
-    FIL fil;
     UINT br;
     FRESULT fres;
 
     uint32_t offset =
             index * sizeof(LogRecord_t);
 
-    fres = f_open(&fil,
+    fres = f_open(&g_fil,
                   "history.bin",
                   FA_READ);
 
     if(fres != FR_OK)
         return fres;
 
-    fres = f_lseek(&fil, offset);
+    fres = f_lseek(&g_fil, offset);
 
     if(fres != FR_OK)
     {
-        f_close(&fil);
+        f_close(&g_fil);
         return fres;
     }
 
-    fres = f_read(&fil,
+    fres = f_read(&g_fil,
                   record,
                   sizeof(LogRecord_t),
                   &br);
 
-    f_close(&fil);
+    f_close(&g_fil);
 
     if(br != sizeof(LogRecord_t))
     {
@@ -306,115 +470,20 @@ FRESULT Logger_ReadRecord(uint16_t index,
     return fres;
 }
 
-void modbus_task_sd(void)
+FRESULT Logger_ReadRecord_Open(FIL *fil, uint16_t index, LogRecord_t *record)
 {
-    uint16_t i = (sd_index == 0) ? (MAX_RECORDS - 1) : (sd_index - 1);
-    do
-    {
-        Logger_ReadRecord(i, &read_sd_logs);
-        Modbus_FC_10_sd();
-        HAL_Delay(5);
-
-        if(i == 0)
-            i = MAX_RECORDS - 1;
-        else
-            i -= 1;
-
-    } while(i != ((sd_index == 0) ? (MAX_RECORDS - 1) : (sd_index - 1)));
-}
-
-void Modbus_FC_10_sd(void)
-{
-	static uint8_t  frame_sd[128];
-	uint8_t idx = 0;
-	memset(frame_sd, 0, sizeof(frame_sd));
-	uint8_t  slave_id   = Modbus_Slave_Id_PC;
-	uint16_t start_addr = 0x0;
-	uint16_t reg_count  = 0xF;
-	uint16_t *regs      = (uint16_t*)&read_sd_logs;
-
-	frame_sd[idx++] = slave_id;
-	frame_sd[idx++] = 0x10;
-	frame_sd[idx++] = (start_addr >> 8) & 0xFF;
-	frame_sd[idx++] =  start_addr       & 0xFF;
-	frame_sd[idx++] = (reg_count  >> 8) & 0xFF;
-	frame_sd[idx++] =  reg_count        & 0xFF;
-	frame_sd[idx++] =  reg_count * 2;
-
-	for (int i = 0; i < reg_count; i++) {
-
-		uint16_t value = regs[start_addr + i];
-		frame_sd[idx++] = (value >> 8) & 0xFF;
-		frame_sd[idx++] = value & 0xFF;
-	}
-
-	uint16_t crc = Modbus_CRC16(frame_sd, idx);
-	frame_sd[idx++] = crc & 0xFF;
-	frame_sd[idx++] = crc >> 8;
-
-	RS485_TX_MODE_PC();
-	HAL_UART_Transmit_DMA(&huart8, (uint8_t*)frame_sd, idx);
-}
-
-FRESULT Logger_ExportCSV(void)
-{
-    FIL bin_fil, csv_fil;
-    UINT br, bw;
+    UINT br;
     FRESULT fres;
-    LogRecord_t record;
-    char line[128];
 
-    fres = f_open(&bin_fil, "history.bin", FA_OPEN_EXISTING | FA_READ);
-    if(fres != FR_OK)
-        return fres;
+    uint32_t offset = index * sizeof(LogRecord_t);
 
-    // create CSV fresh on export
-    fres = f_open(&csv_fil, "history.csv", FA_CREATE_ALWAYS | FA_WRITE);
-    if(fres != FR_OK)
-    {
-        f_close(&bin_fil);
-        return fres;
-    }
+    fres = f_lseek(fil, offset);
+    if(fres != FR_OK) return fres;
 
-    // Write header
-    const char *header = "Year,Month,Day,Hour,Minute,Second,"
-                         "Overload,Overrun,Alarm,Hv_Fault,Dtc_Fault,"
-                         "CPS_MSB,CPS_LSB,mR_MSB,mR_LSB\r\n";
-    f_write(&csv_fil, header, strlen(header), &bw);
+    fres = f_read(fil, record, sizeof(LogRecord_t), &br);
+    if(br != sizeof(LogRecord_t)) return FR_INT_ERR;
 
-    // Read all 500 slots in circular order starting from sd_index
-    for(uint16_t i = 0; i < 500; i++)
-    {
-        uint16_t read_index = (sd_index + i) % 500;
-        uint32_t offset = read_index * sizeof(LogRecord_t);
-
-        f_lseek(&bin_fil, offset);
-        fres = f_read(&bin_fil, &record, sizeof(LogRecord_t), &br);
-
-        if(fres != FR_OK || br != sizeof(LogRecord_t))
-            continue;
-
-        // Skip empty/unwritten slots (all zeros)
-        if(record.RTC_YEAR == 0 && record.RTC_MONTH == 0)
-            continue;
-
-        int len = snprintf(line, sizeof(line),
-            "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\r\n",
-            record.RTC_DAY, record.RTC_MONTH,  record.RTC_YEAR,
-            record.RTC_HOUR, record.RTC_MIN, record.RTC_SEC,
-            record.Overload, record.Overrun, record.Alarm,
-            record.Hv_Fault, record.Dtc_Fault,
-            record.CPS_MSB,  record.CPS_LSB,
-            record.mR_MSB,   record.mR_LSB);
-
-        f_write(&csv_fil, line, len, &bw);
-    }
-
-    f_close(&bin_fil);
-    f_close(&csv_fil);
-
-    printf("CSV export done\r\n");
-    return FR_OK;
+    return fres;
 }
 
 /* wait SD ready */
@@ -504,9 +573,6 @@ static bool SD_RxDataBlock(BYTE *buff, UINT len)
 	{
 	    SPI_RxBytePtr(&buff[i]);
 	}
-//	do {
-//		SPI_RxBytePtr(buff++);
-//	} while(len--);
 
 	/* discard CRC */
 	SPI_RxByte();
@@ -898,3 +964,252 @@ DRESULT SD_disk_ioctl(BYTE drv, BYTE ctrl, void *buff)
 
 	return res;
 }
+
+void sd_task(void)
+{
+	if(g_sd_present){     /* g_sd_present :SD Present on Board*/
+		static bool server_conn_failed_flag = false;
+		bool status = modbus_task_sd();
+		if(status == true){
+			read_sd_flag = false;
+		}
+		else
+		{
+			static bool server_wait_flag = true;
+			static uint32_t server_tick = 0;
+			static uint8_t server_fail_cnt = 0;
+            if(HAL_GetTick() - server_tick > 1000)
+            {
+            	server_fail_cnt += 1;
+            	server_tick = HAL_GetTick();
+            }
+
+            if(server_wait_flag == true)
+            {
+            	display_server_wait();
+            	server_wait_flag = false;
+            }
+            if(server_fail_cnt >= 30)
+            {
+            	server_fail_cnt = 0;
+            	server_conn_failed_flag = true;
+            	server_wait_flag = true;
+            	read_sd_flag = false;
+            }
+		}
+
+		if(server_conn_failed_flag == true)
+		{
+	       server_conn_failed_flag = false;
+	   	   display_server_failed_status();
+		}
+	}
+	else
+	{
+		read_sd_flag = false;
+	}
+}
+
+bool modbus_task_sd(void)
+{
+	f_close(&g_history_fil);
+	f_close(&g_index_fil);
+
+	// ── Connect to PC as Master ──
+	if(Modbus_Registers.SD_MODE == 1){
+		if(!modbus_client_connect())
+		{
+			// printf("SD send aborted — cannot reach PC\r\n");
+			// Reopen files and return
+			f_open(&g_history_fil, "history.bin", FA_OPEN_EXISTING | FA_WRITE);
+			f_open(&g_index_fil,   "index.bin",   FA_OPEN_ALWAYS   | FA_WRITE);
+			return false;
+		}
+	}
+	uint16_t i     = (sd_index == 0) ? (MAX_RECORDS - 1) : (sd_index - 1);
+	uint16_t start = i;
+
+	FRESULT fres = f_open(&g_read_fil, "history.bin", FA_READ);
+	if(fres != FR_OK)
+	{
+		// printf("modbus_task_sd open failed: %d\r\n", fres);
+		modbus_client_disconnect();
+		return false;
+	}
+
+	Modbus_Restart_RX_DMA_PC_SD();
+	display_data_writing();
+	do
+	{
+		HAL_Delay(1);
+		Logger_ReadRecord_Open(&g_read_fil, i, &read_sd_logs);
+
+		if(Modbus_Registers.SD_MODE == 0){
+			//            Modbus_FC_10_sd_rs485();
+			Modbus_Send_Record_And_WaitAck();
+		}
+		else{
+			uint16_t txn_id  = Modbus_FC_10_sd_tcp();
+			ModbusAckResult ack = Modbus_FC10_WaitAck(txn_id);
+			if(ack != MODBUS_ACK_OK)
+			{
+				// printf("Record %u failed (ack=%d) — skipping\r\n", i, ack);
+				/* Options: break, retry, or just skip this record */
+			}
+		}
+		HAL_Delay(1);
+
+		if(i == 0)
+			i = MAX_RECORDS - 1;
+		else
+			i -= 1;
+
+	} while(i != start);
+
+	HAL_Delay(1);
+	f_close(&g_read_fil);
+
+	modbus_client_disconnect();
+
+	f_open(&g_history_fil, "history.bin", FA_OPEN_EXISTING | FA_WRITE);
+	f_open(&g_index_fil,   "index.bin",   FA_OPEN_ALWAYS   | FA_WRITE);
+
+	// Reset For Normal PC Modbus
+	Modbus_Restart_RX_DMA_PC();
+	display_data_writing_done();
+
+	return true;
+}
+
+void open_files(void)
+{
+	f_open(&g_history_fil,
+			"history.bin",
+			FA_OPEN_EXISTING | FA_WRITE);
+
+	f_open(&g_index_fil,
+			"index.bin",
+			FA_OPEN_ALWAYS | FA_WRITE);
+}
+
+
+//void modbus_task_sd(void)
+//{
+//	f_close(&g_history_fil);
+//	f_close(&g_index_fil);
+//
+//    uint16_t i = (sd_index == 0) ? (MAX_RECORDS - 1) : (sd_index - 1);
+//    uint16_t start = i;
+//
+//    FRESULT fres = f_open(&g_read_fil, "history.bin", FA_READ);
+//    if(fres != FR_OK)
+//    {
+//        printf("modbus_task_sd open failed: %d\r\n", fres);
+//        return;
+//    }
+//
+//    do
+//    {
+//        // seek + read only, no open/close per iteration
+//        Logger_ReadRecord_Open(&g_read_fil, i, &read_sd_logs);
+//
+//        if(Modbus_Registers.SD_MODE == 0)
+//            Modbus_FC_10_sd_rs485();
+//        else
+//            Modbus_FC_10_sd_tcp();
+//
+//        HAL_Delay(50);
+//
+//        if(i == 0)
+//            i = MAX_RECORDS - 1;
+//        else
+//            i -= 1;
+//
+//    } while(i != start);
+//
+//    // ── Close ONCE after loop ──
+//    f_close(&g_read_fil);
+//
+//    f_open(&g_history_fil,
+//           "history.bin",
+//           FA_OPEN_EXISTING | FA_WRITE);
+//
+//    f_open(&g_index_fil,
+//           "index.bin",
+//           FA_OPEN_ALWAYS | FA_WRITE);
+//}
+
+
+
+//
+//FRESULT Logger_RecoverIndex(void)
+//{
+//	FIL tmp_history_fil;
+//	UINT br;
+//	FRESULT fres;
+//	LogRecord_t record;
+//	static uint32_t counts[MAX_RECORDS];
+//
+//	fres = f_open(&tmp_history_fil, "history.bin", FA_OPEN_EXISTING | FA_READ);
+//	if (fres != FR_OK) { sd_index = 0; return fres; }
+//
+//	// Read all write_count values
+//	for (uint16_t i = 0; i < MAX_RECORDS; i++)
+//	{
+//		fres = f_read(&tmp_history_fil, &record, sizeof(LogRecord_t), &br);
+//		if (fres != FR_OK || br != sizeof(LogRecord_t))
+//		{
+//			// Partial file — not yet fully written, simple case
+//			sd_index = i;
+//			f_close(&tmp_history_fil);
+//			printf("Recovered (partial) sd_index = %u\r\n", sd_index);
+//			g_write_count = (i == 0) ? 0 : counts[i - 1] + 1;
+//			f_open(&g_index_fil,
+//					"index.bin",
+//					FA_OPEN_ALWAYS | FA_WRITE);
+//			FRESULT status = Logger_SaveIndex();
+//			f_close(&g_index_fil);
+//			return status;
+//
+//		}
+//
+//		// ── CHANGED: combine MSB+LSB instead of record.write_count ──
+//		counts[i] = get_write_count(&record);
+//	}
+//
+//	f_close(&tmp_history_fil);
+//
+//	// Find where counter drops — that's the oldest record = current write pos
+//	// Example: [500,501,502,...,998,999, 0,1,2,...,499]
+//	//                                   ↑ this is sd_index
+//	for (uint16_t i = 0; i < MAX_RECORDS - 1; i++)
+//	{
+//		// ── CHANGED: rollover-safe comparison for uint32_t ──
+//		if ((uint32_t)(counts[i+1] - counts[i]) > 0x80000000UL)
+//		{
+//			sd_index = i + 1;
+//			printf("Recovered (circular) sd_index = %u\r\n", sd_index);
+//
+//			// Also recover g_write_count
+//			g_write_count = counts[i] + 1;
+//			f_open(&g_index_fil,
+//					"index.bin",
+//					FA_OPEN_ALWAYS | FA_WRITE);
+//			FRESULT status = Logger_SaveIndex();
+//			f_close(&g_index_fil);
+//			return status;
+//
+//		}
+//	}
+//
+//	// No wrap found — buffer never wrapped, next slot is after last
+//	sd_index = 0;  // wrapped perfectly back to 0
+//	g_write_count = counts[MAX_RECORDS - 1] + 1;
+//	printf("Recovered (full wrap) sd_index = 0\r\n");
+//	f_open(&g_index_fil,
+//			"index.bin",
+//			FA_OPEN_ALWAYS | FA_WRITE);
+//	FRESULT status = Logger_SaveIndex();
+//	f_close(&g_index_fil);
+//	return status;
+//}

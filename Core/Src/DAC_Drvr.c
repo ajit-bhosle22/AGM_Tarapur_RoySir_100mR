@@ -14,8 +14,8 @@
 float g_cal_a = 0.0f;   // counts/mA
 float g_cal_b = 0.0f;   // offset
 
-#define DAC_4MA_CODE    710
-#define DAC_20MA_CODE   3558
+#define DAC_4MA_CODE    718
+#define DAC_20MA_CODE   3607
 
 void Two_Point_Calibrate_DAC(float measured_4mA, float measured_20mA)
 {

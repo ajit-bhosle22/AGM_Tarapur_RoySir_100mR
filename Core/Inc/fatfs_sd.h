@@ -2,6 +2,7 @@
 #ifndef __FATFS_SD_H
 #define __FATFS_SD_H
 
+#include <stdbool.h>
 #include "diskio.h"
 #include "ff.h"
 
@@ -40,27 +41,30 @@ DRESULT SD_disk_ioctl (BYTE pdrv, BYTE cmd, void* buff);
 
 typedef struct
 {
-	uint16_t RTC_DAY;    //Addr0
-	uint16_t RTC_MONTH;  //Addr1
-	uint16_t RTC_YEAR;   //Addr2
-	uint16_t RTC_HOUR;   //Addr3
-	uint16_t RTC_MIN;    //Addr4
-	uint16_t RTC_SEC;    //Addr5
-	uint16_t Overload;   //Addr6
-	uint16_t Overrun;    //Addr7
-	uint16_t Alarm;      //Addr8
-	uint16_t Hv_Fault;   //Addr9
-	uint16_t Dtc_Fault;  //Addr10
-	uint16_t CPS_MSB;    //Addr11
-	uint16_t CPS_LSB;    //Addr12
-	uint16_t mR_MSB;     //Addr13
-	uint16_t mR_LSB;     //Addr14
+	uint16_t WRITE_COUNT_MSB;  //Addr0
+	uint16_t WRITE_COUNT_LSB;  //Addr1
+	uint16_t RTC_DAY;          //Addr2
+	uint16_t RTC_MONTH;        //Addr3
+	uint16_t RTC_YEAR;         //Addr4
+	uint16_t RTC_HOUR;         //Addr5
+	uint16_t RTC_MIN;          //Addr6
+	uint16_t RTC_SEC;          //Addr7
+	uint16_t Overload;         //Addr8
+	uint16_t Overrun;          //Addr9
+	uint16_t Alarm;            //Addr10
+	uint16_t Hv_Fault;         //Addr11
+	uint16_t Dtc_Fault;        //Addr12
+	uint16_t CPS_MSB;          //Addr13
+	uint16_t CPS_LSB;          //Addr14
+	uint16_t mR_MSB;           //Addr15
+	uint16_t mR_LSB;           //Addr16
 } __attribute__((packed)) LogRecord_t;
 
 extern LogRecord_t sd_logs;
-
+extern LogRecord_t read_sd_logs;
 extern uint32_t g_sequence ;
-extern uint32_t g_journal_slot ;
+extern uint32_t g_journal_slot;
+extern uint32_t g_write_count;
 
 FRESULT Logger_ReadRecord(uint16_t index,
                           LogRecord_t *record);
@@ -68,11 +72,15 @@ FRESULT Logger_WriteRecord(LogRecord_t *record);
 FRESULT Logger_LoadIndex(void);
 FRESULT Logger_SaveIndex(void);
 FRESULT Logger_ExportCSV(void);
+FRESULT Logger_RecoverIndex(void);
+FRESULT Logger_ReadRecord_Open(FIL *fil, uint16_t index, LogRecord_t *record);
 
 void file_operations(void);
-void create_file(void);
+bool create_file(void);
 void sd_card_operations(void);
-void modbus_task_sd(void);
+bool modbus_task_sd(void);
 void Modbus_FC_10_sd(void);
+void open_files(void);
+void sd_task(void);
 
 #endif

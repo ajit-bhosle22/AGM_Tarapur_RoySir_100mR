@@ -95,7 +95,9 @@ typedef enum
    System_Freq_Dtc_Screen,
    System_Rtc_Screen,
    Modify_Password_Screen,
+   PC_Ethernet_Setting_Screen,
    System_Read_Data,
+   System_Read_Mode,
    System_Save_Setting_Screen
 }System_Screen_t;
 
@@ -123,14 +125,19 @@ extern uint8_t freq_recv_mode;
 extern char temp_freq_recv_str[12];
 extern uint8_t freq_dtc_mode;
 extern char temp_freq_dtc_str[12];
+extern uint8_t sd_mode;
+extern char temp_sdmode_str[12];
 
-
-// ---------------Saved ETH---------------------
+// ---------------Saved ETH  (FOR DEVICE)---------------------
 extern char saved_eth_slave_id[6];
 extern char saved_eth_port[6];
 extern char saved_eth_ip[16];
 extern char saved_eth_subnet[16];
 extern char saved_eth_gateway[16];
+
+// --------------Saved ETH (FOR PC)--------------------------
+extern char saved_eth_port_pc[6];
+extern char saved_eth_ip_pc[16];
 
 extern char correct_password[5] ;
 // --------------Saved Calibration--------------
@@ -147,6 +154,7 @@ extern SystemStateFlag prevState;
 extern float hv_val_dtc ;
 extern bool write_hv_val_dtc ;
 extern uint16_t last_unit;
+extern volatile uint8_t saved_sn_ir;
 
 void LCD_SetData(uint8_t);
 void LCD_WriteCmd(uint8_t);
@@ -228,5 +236,12 @@ void select_rtc_format_val(char *val);
 void select_rtc_time_format_val(char *val);
 void select_rtc_date_format_val(char *val);
 uint8_t Get_RTC_WeekDay(uint8_t, uint8_t, uint16_t);
+void lcd_numeric_edit_screen_pc(char *title, char *value);
+void lcd_ip_edit_screen_pc(char *title, char *ip);
+void display_server_failed_status(void);
+void display_data_writing(void);
+void display_data_writing_done(void);
+void display_server_wait(void);
+bool IsLeapYear(uint16_t year);
 
 #endif /* INC_LCD_H_ */

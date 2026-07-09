@@ -33,15 +33,7 @@ typedef enum {
 } phy_state_t;
 
 
-typedef enum {
-    sock_closed = 0,
-    sock_listen,
-    sock_established
-} sock_state_t;
-
-
 extern volatile phy_state_t  phy_state;
-
 extern volatile bool ntw_alive;
 extern volatile uint16_t tcp_slave_id;
 extern volatile uint16_t tcp_current_port;
@@ -49,7 +41,7 @@ extern volatile uint8_t boot_up_link;
 extern volatile uint8_t pending_baud_change;
 extern uint32_t pending_new_baud;
 extern uint16_t sock_is_sending;
-
+extern volatile bool W5500_Process_Interrupts_flag;
 
 void Update_Registers_TCP(void);
 void W5500_Process_Interrupts(void);
@@ -67,6 +59,7 @@ void Reconfigure_TCP(void);
 bool W5500_Network_Alive(void);
 void tcp_task(void);
 void monitor_tcp_handle_write(void);
+void handle_socket_state_sd(void);
 HAL_StatusTypeDef SPI3_ReInit(void);
 
 #endif

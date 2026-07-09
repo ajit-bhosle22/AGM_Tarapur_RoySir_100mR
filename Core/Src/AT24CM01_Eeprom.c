@@ -128,6 +128,9 @@ void cpy_reg_to_eeprom_reg(void)
 	g_config.Ethernet_Gateway_LSB      = Modbus_Registers.Ethernet_Gateway_LSB;
 	g_config.Ethernet_Slave_Id         = Modbus_Registers.Ethernet_Slave_Id;
 	g_config.Ethernet_Port             = Modbus_Registers.Ethernet_Port;
+	g_config.Ethernet_IP_MSB_PC        = Modbus_Registers.Ethernet_IP_MSB_PC;
+	g_config.Ethernet_IP_LSB_PC        = Modbus_Registers.Ethernet_IP_LSB_PC;
+	g_config.Ethernet_Port_PC          = Modbus_Registers.Ethernet_Port_PC;
 	g_config.Overload_MSB              = Modbus_Registers.Overload_MSB;
 	g_config.Overload_LSB              = Modbus_Registers.Overload_LSB;
 	g_config.Overload_Unit             = Modbus_Registers.Overload_Unit;
@@ -153,6 +156,7 @@ void cpy_reg_to_eeprom_reg(void)
 	g_config.CAL_4_20MA_FACTB_MSB      = (b_fac >> 16) & 0xFFFF;
 	g_config.CAL_4_20MA_FACTB_LSB      = b_fac & 0xFFFF;
 
+	g_config.SD_MODE                   = Modbus_Registers.SD_MODE;
 	g_config.MAGIC_NUMBER              = 0xAA55;
 
 }
@@ -208,6 +212,11 @@ void Load_Default_Config(device_config_t *cfg)
 
 	cfg->Ethernet_Slave_Id = 1;
 	cfg->Ethernet_Port     = 502;
+
+	// PC: IP->192.168.1.53 , Port:502
+	cfg->Ethernet_IP_MSB_PC = (192<<8) | 168;
+	cfg->Ethernet_IP_LSB_PC = (1<<8)   | 53;
+	cfg->Ethernet_Port_PC   = 502;
 
 	// Overload = 200R/h
 	cfg->Overload_MSB  = 0;

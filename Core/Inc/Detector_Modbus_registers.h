@@ -5,7 +5,7 @@
 #define TIMEOUT_MS                2000
 #define DTC_HV_SWITCH_ADDR        3
 #define DTC_POLLING_START_ADDR    0
-#define DTC_POLLING_REG_COUNT     10
+#define DTC_POLLING_REG_COUNT     13
 #define DTC_FREQ_SWITCH_ADDR      8
 
 typedef enum

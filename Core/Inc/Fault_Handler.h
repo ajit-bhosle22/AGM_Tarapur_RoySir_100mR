@@ -39,7 +39,6 @@ extern float Hv_Voltage;
 extern uint32_t Hv_Val;
 extern uint32_t CPS_VAL;
 extern volatile float radiation_uSv;
-
 extern uint32_t boot_up_time_tick_hv;
 extern const float factor_thresholds[20];
 

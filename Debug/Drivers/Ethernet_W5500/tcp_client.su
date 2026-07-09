@@ -1,0 +1,5 @@
+../Drivers/Ethernet_W5500/tcp_client.c:46:6:Reconfig_TCP_PC	0	static
+../Drivers/Ethernet_W5500/tcp_client.c:64:17:Modbus_FC10_WaitAck	32	static
+../Drivers/Ethernet_W5500/tcp_client.c:137:6:modbus_client_connect	8	static
+../Drivers/Ethernet_W5500/tcp_client.c:179:10:Modbus_FC_10_sd_tcp	272	static
+../Drivers/Ethernet_W5500/tcp_client.c:233:6:modbus_client_disconnect	8	static

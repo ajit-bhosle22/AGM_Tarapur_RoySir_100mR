@@ -18,6 +18,7 @@
 "./Drivers/Ethernet_W5500/DNS/dns.o"
 "./Drivers/Ethernet_W5500/W5500/w5500.o"
 "./Drivers/Ethernet_W5500/socket.o"
+"./Drivers/Ethernet_W5500/tcp_client.o"
 "./Drivers/Ethernet_W5500/tcp_server.o"
 "./Drivers/Ethernet_W5500/wizchip_conf.o"
 "./Drivers/Ethernet_W5500/wizchip_port.o"

@@ -65,13 +65,13 @@ void modbus_task_pc(void)
 			Modbus_Registers_Write.Reset = 0;
 		}
 		else{
-
+			validate_modbus_write_rs485();
 			is_reconfigure_rs485_tcp();
-			is_reconfigure_hv_rs485();
+			is_reconfigure_hv_rs485(addr,reg_cnt);
 			is_reconfigure_rtc_rs485();
 			is_sd_card_read_rs485();
 
-			Modbus_Registers = Modbus_Registers_Write;
+			Modbus_Registers        = Modbus_Registers_Write;
 			Modbus_Registers_PC_TCP = Modbus_Registers;
 			conf_rs485_tcp();
 			config_variables();
@@ -90,12 +90,14 @@ void modbus_task_pc(void)
 		uint16_t addr = pc_state.last_write_addr;
 		uint16_t reg_cnt = pc_state.last_reg_cnt;
 
+		validate_modbus_write_rs485();
+		check_ack_and_reset_rs485(addr,reg_cnt);
 		is_reconfigure_rs485_tcp();
-		is_reconfigure_hv_rs485();
+		is_reconfigure_hv_rs485(addr,reg_cnt);
 		is_reconfigure_rtc_rs485();
 		is_sd_card_read_rs485();
 
-		Modbus_Registers = Modbus_Registers_Write;
+		Modbus_Registers        = Modbus_Registers_Write;
 		Modbus_Registers_PC_TCP = Modbus_Registers;
 		conf_rs485_tcp();
 		config_variables();

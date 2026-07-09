@@ -34,7 +34,8 @@ volatile uint16_t rx_index_dtc       = 0;
 
 uint16_t hv_switch_val;
 uint16_t dtc_freq_switch_val;
-bool     boot_freq_dtc_check = false;
+volatile bool boot_freq_dtc_write_enable = false;
+volatile bool boot_freq_dtc_write_done   = false;
 
 DTC_Modbus_State_t           Modbus_State_DTC    = MODBUS_IDLE_DTC;
 Modbus_Write_Flag_t          modbus_write_flag   = MODBUS_POLLING_FLAG;
@@ -46,7 +47,6 @@ master_modbus_db_dtc_t Modbus_Registers_Detector_Write = {0};
 
 void modbus_task_dtc(void)
 {
-
 	if(prev_relay_status != relay_status)
 	{
 		if(relay_status == 1)
@@ -56,6 +56,7 @@ void modbus_task_dtc(void)
 		else{
 			hv_switch_val = 0x00;
 		}
+
 		prev_relay_status = relay_status;
 		modbus_write_flag = MODBUS_SINGLE_WRITE_FLAG;
 		single_write_flag = HV_SWITCH_FLAG;
@@ -65,16 +66,6 @@ void modbus_task_dtc(void)
 	{
 		if (Modbus_State_DTC == MODBUS_IDLE_DTC)
 		{
-			if(!boot_freq_dtc_check)
-			{
-	            if(Modbus_Registers.FREQ_DTC == 1)
-	            {
-                   modbus_write_flag = MODBUS_SINGLE_WRITE_FLAG;
-                   single_write_flag = DTC_FREQ_SWITCH_FLAG;
-	            }
-				boot_freq_dtc_check = true;
-			}
-
 			if(modbus_write_flag == MODBUS_SINGLE_WRITE_FLAG)
 			{
 				Modbus_State_DTC = MODBUS_SEND_WRITE_SINGLE;
@@ -92,11 +83,11 @@ void modbus_task_dtc(void)
 		if(Modbus_State_DTC == MODBUS_SEND_WRITE_SINGLE)
 		{
 			if(single_write_flag == HV_SWITCH_FLAG){
-			detector_write_single_register(DTC_HV_SWITCH_ADDR,hv_switch_val);
+				detector_write_single_register(DTC_HV_SWITCH_ADDR,hv_switch_val);
 			}
 			if(single_write_flag == DTC_FREQ_SWITCH_FLAG)
 			{
-			detector_write_single_register(DTC_FREQ_SWITCH_ADDR,dtc_freq_switch_val);
+				detector_write_single_register(DTC_FREQ_SWITCH_ADDR,dtc_freq_switch_val);
 			}
 			request_time = HAL_GetTick();
 			Modbus_State_DTC = MODBUS_WAIT_RESPONSE;
@@ -105,23 +96,23 @@ void modbus_task_dtc(void)
 		{
 			// ----for HV Write and Calib Factors-----
 			if(multiple_write_flag == HV_WRITE_FLAG){
-			 detector_write_multiple_registers(DTC_HV_VAL_ADDR,DTC_HV_REG_COUNT);
+				detector_write_multiple_registers(DTC_HV_VAL_ADDR,DTC_HV_REG_COUNT);
 			}
 			else if(multiple_write_flag == CALIB_WRITE_FLAG)
 			{
-			  detector_write_multiple_registers(DTC_CALIB_FACT_ADDR,DTC_CALIB_FACT_REG_COUNT);
+				detector_write_multiple_registers(DTC_CALIB_FACT_ADDR,DTC_CALIB_FACT_REG_COUNT);
 			}
 			else if(multiple_write_flag == HV_AND_CALIB_WRITE_FLAG)
 			{
-			  detector_write_multiple_registers(HV_AND_CALIB_FACT_ADDR,HV_AND_CALIB_FACT_REG_COUNT);
+				detector_write_multiple_registers(HV_AND_CALIB_FACT_ADDR,HV_AND_CALIB_FACT_REG_COUNT);
 			}
 			else if(multiple_write_flag == HV_AND_FREQ_WRITE_FLAG)
 			{
-			  detector_write_multiple_registers(HV_AND_FREQ_ADDR,HV_AND_FREQ_REG_COUNT);
+				detector_write_multiple_registers(HV_AND_FREQ_ADDR,HV_AND_FREQ_REG_COUNT);
 			}
 			else
 			{
-			  detector_write_multiple_registers(DTC_ALLCONF_ADDR,DTC_ALLCONF_REG_COUNT);
+				detector_write_multiple_registers(DTC_ALLCONF_ADDR,DTC_ALLCONF_REG_COUNT);
 			}
 			request_time = HAL_GetTick();
 			Modbus_State_DTC = MODBUS_WAIT_RESPONSE;
@@ -153,13 +144,14 @@ void modbus_task_dtc(void)
 
 			if(dtc_rx_frame.func_code_dtc == 0x03 && dtc_rx_frame.valid_resp == 1)
 			{
-				update_cps_hv_mr();
 				initialize_modbus_registers();
 				config_CalibFactors_Variables();
+				update_cps_hv_mr();
+                //config_dtc_switch();
 
-				Dtc_Failed_Timeout = 0;
-				Dtc_Failed_Status  = false;
-				dtc_rx_frame.valid_resp = 0;
+				Dtc_Failed_Timeout         = 0;
+				Dtc_Failed_Status          = false;
+				dtc_rx_frame.valid_resp    = 0;
 				dtc_rx_frame.func_code_dtc = 0;
 
 				Modbus_State_DTC = MODBUS_IDLE_DTC;
@@ -167,28 +159,28 @@ void modbus_task_dtc(void)
 
 			if(dtc_rx_frame.func_code_dtc == 0x06 && dtc_rx_frame.valid_resp == 1)
 			{
-				Dtc_Failed_Timeout = 0;
-				Dtc_Failed_Status  = false;
+				Dtc_Failed_Timeout          = 0;
+				Dtc_Failed_Status           = false;
 				dtc_rx_frame.func_code_dtc  = 0;
-				dtc_rx_frame.valid_resp = 0;
+				dtc_rx_frame.valid_resp     = 0;
 
 				modbus_write_flag = MODBUS_POLLING_FLAG;
 				single_write_flag = SINGLE_WRITE_DONE;
-				Modbus_State_DTC = MODBUS_IDLE_DTC;
+				Modbus_State_DTC  = MODBUS_IDLE_DTC;
 
 				Modbus_Registers_Detector_Write = (master_modbus_db_dtc_t){0};
 			}
 
 			if(dtc_rx_frame.func_code_dtc == 0x10 && dtc_rx_frame.valid_resp == 1)
 			{
-				Dtc_Failed_Timeout = 0;
-				Dtc_Failed_Status  = false;
+				Dtc_Failed_Timeout          = 0;
+				Dtc_Failed_Status           = false;
 				dtc_rx_frame.func_code_dtc  = 0;
-				dtc_rx_frame.valid_resp = 0;
+				dtc_rx_frame.valid_resp     = 0;
 
-				modbus_write_flag = MODBUS_POLLING_FLAG;
-				multiple_write_flag = MULTIPLE_WRITE_DONE;
-				Modbus_State_DTC = MODBUS_IDLE_DTC;
+				modbus_write_flag           = MODBUS_POLLING_FLAG;
+				multiple_write_flag         = MULTIPLE_WRITE_DONE;
+				Modbus_State_DTC            = MODBUS_IDLE_DTC;
 
 				Modbus_Registers_Detector_Write = (master_modbus_db_dtc_t){0};
 			}
@@ -196,7 +188,7 @@ void modbus_task_dtc(void)
 
 		if (HAL_GetTick() - request_time > TIMEOUT_MS)
 		{
-			Modbus_State_DTC = MODBUS_IDLE_DTC;
+			Modbus_State_DTC  = MODBUS_IDLE_DTC;
 			modbus_write_flag = MODBUS_POLLING_FLAG;
 		}
 	}

@@ -1,4 +1,5 @@
-Core/Src/fatfs_sd.o: ../Core/Src/fatfs_sd.c ../Core/Inc/main.h \
+Drivers/Ethernet_W5500/tcp_client.o: \
+ ../Drivers/Ethernet_W5500/tcp_client.c ../Core/Inc/main.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h \
  ../Core/Inc/stm32h7xx_hal_conf.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc.h \
@@ -37,13 +38,18 @@ Core/Src/fatfs_sd.o: ../Core/Src/fatfs_sd.c ../Core/Inc/main.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim_ex.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h \
- ../Core/Inc/main_global.h ../Middlewares/Third_Party/FatFs/src/diskio.h \
- ../Middlewares/Third_Party/FatFs/src/integer.h ../Core/Inc/fatfs_sd.h \
+ ../Core/Inc/main_global.h ../Drivers/Ethernet_W5500/socket.h \
+ ../Drivers/Ethernet_W5500/wizchip_conf.h \
+ ../Drivers/Ethernet_W5500/W5500/w5500.h \
+ C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/wizchip_conf.h \
+ ../Drivers/Ethernet_W5500/wizchip_port.h ../Core/Inc/modbus.h \
+ ../Core/Inc/main.h ../Core/Inc/tcp_server_registers.h \
+ ../Core/Inc/AT24CM01_Eeprom.h ../Core/Inc/Fault_Handler.h \
+ ../Core/Inc/pc_modbus.h ../Core/Inc/lcd.h ../Core/Inc/modbus.h \
+ ../Core/Inc/fatfs_sd.h ../Middlewares/Third_Party/FatFs/src/diskio.h \
+ ../Middlewares/Third_Party/FatFs/src/integer.h \
  ../Middlewares/Third_Party/FatFs/src/ff.h ../FATFS/Target/ffconf.h \
- ../Core/Inc/lcd.h ../Core/Inc/main.h ../Core/Inc/modbus.h \
- ../Core/Inc/pc_modbus.h ../Core/Inc/modbus.h \
- ../Core/Inc/AT24CM01_Eeprom.h ../Core/Inc/tcp_server_registers.h \
- C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/tcp_client.h
+ ../Drivers/Ethernet_W5500/tcp_client.h
 ../Core/Inc/main.h:
 ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h:
 ../Core/Inc/stm32h7xx_hal_conf.h:
@@ -84,16 +90,22 @@ Core/Src/fatfs_sd.o: ../Core/Src/fatfs_sd.c ../Core/Inc/main.h \
 ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h:
 ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h:
 ../Core/Inc/main_global.h:
+../Drivers/Ethernet_W5500/socket.h:
+../Drivers/Ethernet_W5500/wizchip_conf.h:
+../Drivers/Ethernet_W5500/W5500/w5500.h:
+C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/wizchip_conf.h:
+../Drivers/Ethernet_W5500/wizchip_port.h:
+../Core/Inc/modbus.h:
+../Core/Inc/main.h:
+../Core/Inc/tcp_server_registers.h:
+../Core/Inc/AT24CM01_Eeprom.h:
+../Core/Inc/Fault_Handler.h:
+../Core/Inc/pc_modbus.h:
+../Core/Inc/lcd.h:
+../Core/Inc/modbus.h:
+../Core/Inc/fatfs_sd.h:
 ../Middlewares/Third_Party/FatFs/src/diskio.h:
 ../Middlewares/Third_Party/FatFs/src/integer.h:
-../Core/Inc/fatfs_sd.h:
 ../Middlewares/Third_Party/FatFs/src/ff.h:
 ../FATFS/Target/ffconf.h:
-../Core/Inc/lcd.h:
-../Core/Inc/main.h:
-../Core/Inc/modbus.h:
-../Core/Inc/pc_modbus.h:
-../Core/Inc/modbus.h:
-../Core/Inc/AT24CM01_Eeprom.h:
-../Core/Inc/tcp_server_registers.h:
-C:/Sayali/Yelsons_project/seawage_treatment_rms/AGM_Mumbai/Drivers/Ethernet_W5500/tcp_client.h:
+../Drivers/Ethernet_W5500/tcp_client.h:
