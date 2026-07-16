@@ -486,7 +486,6 @@ void W5500_Process_Interrupts(void)
 			send(MODBUS_TCP_SOCKET, kickstart, sizeof(kickstart));
 		}
 
-
 		/* -------------DISCONNECT ---------- */
 		if(sn_ir & Sn_IR_DISCON)
 		{

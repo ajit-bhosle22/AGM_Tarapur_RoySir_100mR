@@ -37,15 +37,15 @@ void Two_Point_Calibrate_DAC(float measured_4mA, float measured_20mA)
 
 void Set_4to20MA(void)
 {
-    float min_uSv = Convert_To_uSv(atof(min_4_20_val), Get_Unit(min_4_20_unit));
-    float max_uSv = Convert_To_uSv(atof(max_4_20_val), Get_Unit(max_4_20_unit));
+    float min_uR = Convert_To_uR_H(atof(min_4_20_val), Get_Unit(min_4_20_unit));
+    float max_uR = Convert_To_uR_H(atof(max_4_20_val), Get_Unit(max_4_20_unit));
 
     // Clamp
-    if (radiation_uSv < min_uSv) radiation_uSv = min_uSv;
-    if (radiation_uSv > max_uSv) radiation_uSv = max_uSv;
+    if (radiation_uR < min_uR) radiation_uR = min_uR;
+    if (radiation_uR > max_uR) radiation_uR = max_uR;
 
     // Calculate target mA (4-20mA linear)
-    float percent  = (radiation_uSv - min_uSv) / (max_uSv - min_uSv);
+    float percent  = (radiation_uR - min_uR) / (max_uR - min_uR);
     float target_mA = 4.0f + (percent * 16.0f);
 
     // Convert mA to DAC using calibrated line

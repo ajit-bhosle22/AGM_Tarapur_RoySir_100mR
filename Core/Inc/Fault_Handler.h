@@ -12,7 +12,7 @@ typedef enum
     UNIT_uSV_H,
     UNIT_mSV_H,
     UNIT_SV_H,
-    UNIT_mR_H,
+    UNIT_uR_H,
     UNIT_R_H,
 	UNIT_CPS,
 	UNIT_CPM,
@@ -38,7 +38,7 @@ extern volatile uint8_t Pc_TCP_Failed_Timeout;
 extern float Hv_Voltage;
 extern uint32_t Hv_Val;
 extern uint32_t CPS_VAL;
-extern volatile float radiation_uSv;
+extern volatile float radiation_uR;
 extern uint32_t boot_up_time_tick_hv;
 extern const float factor_thresholds[20];
 
@@ -78,6 +78,7 @@ void monitor_panel_unit_leds(void);
 void Check_RS485_TCP_Communication(void);
 void toggle_buzzer_red_yellow_leds(void);
 float Convert_To_uSv(float value, unit_t unit);
+float Convert_To_uR_H(float value, unit_t unit);
 unit_t Get_Unit(uint8_t unit);
 
 #endif

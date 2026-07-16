@@ -1092,7 +1092,6 @@ void open_files(void)
 			FA_OPEN_ALWAYS | FA_WRITE);
 }
 
-
 //void modbus_task_sd(void)
 //{
 //	f_close(&g_history_fil);

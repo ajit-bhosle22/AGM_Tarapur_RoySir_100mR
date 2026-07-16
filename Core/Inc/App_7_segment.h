@@ -14,5 +14,7 @@ void MAX7219_DisplayNumber(uint32_t number);
 void MAX7219_Init(void);
 void Test_SPI_Send(void);
 void MAX7219_DisplayFloat(uint32_t number, int decimal_pos);
+uint8_t MAX7219_CharToSeg(char c);
+void MAX7219_DisplayString(const char *str);
 
 #endif

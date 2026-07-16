@@ -142,56 +142,55 @@ void check_sw5_status(void)
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
-  /* USER CODE BEGIN 1 */
+	/* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
+	/* USER CODE END 1 */
 
-  /* MPU Configuration--------------------------------------------------------*/
-  MPU_Config();
+	/* MPU Configuration--------------------------------------------------------*/
+	MPU_Config();
 
-  /* MCU Configuration--------------------------------------------------------*/
+	/* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	/* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	/* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	/* Configure the system clock */
+	SystemClock_Config();
 
-  /* Configure the peripherals common clocks */
-  PeriphCommonClock_Config();
+	/* Configure the peripherals common clocks */
+	PeriphCommonClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	/* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	/* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_UART8_Init();
-  MX_USART2_UART_Init();
-  MX_I2C4_Init();
-  MX_SPI3_Init();
-  MX_SPI4_Init();
-  MX_TIM3_Init();
-  MX_TIM4_Init();
-  MX_DAC1_Init();
-  MX_RTC_Init();
-  MX_UART7_Init();
-  MX_SPI1_Init();
-  MX_FATFS_Init();
-  /* USER CODE BEGIN 2 */
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_DMA_Init();
+	MX_UART8_Init();
+	MX_USART2_UART_Init();
+	MX_I2C4_Init();
+	MX_SPI3_Init();
+	MX_SPI4_Init();
+	MX_TIM3_Init();
+	MX_TIM4_Init();
+	MX_DAC1_Init();
+	MX_RTC_Init();
+	MX_UART7_Init();
+	MX_SPI1_Init();
+	MX_FATFS_Init();
+	/* USER CODE BEGIN 2 */
 
-	Panel_LED_Off();
 	g_sd_present = create_file();
 
 	if(g_sd_present)
@@ -218,7 +217,6 @@ int main(void)
 
 	config_modbus_registers();
 	config_variables();
-//	read_e4_20mA_factors();
 
 	// -----------------Initialize 7_Segment-------------------------------
 	MAX7219_Init();
@@ -271,14 +269,11 @@ int main(void)
 
 	//-------------Configure Device In Normal State------------------------
 	Handle_NormalState();
-    Modbus_Registers.Reset        = 1;
-    Modbus_Registers_PC_TCP.Reset = 1;
-
+	Modbus_Registers.Reset        = 1;
+	Modbus_Registers_PC_TCP.Reset = 1;
 
 	HAL_SPI_DeInit(&hspi1);
-
 	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-
 	HAL_SPI_Init(&hspi1);
 
 	// ----- Capture Pulses--------
@@ -286,17 +281,17 @@ int main(void)
 
 	// -------TCP KEEP ALIVE TIMEOUT (5 sec)------------------
 	setRTR(2000);
-    setRCR(3);
+	setRCR(3);
 
-  /* USER CODE END 2 */
+	/* USER CODE END 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
 	while (1)
 	{
-    /* USER CODE END WHILE */
+		/* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+		/* USER CODE BEGIN 3 */
 
 		if(read_sd_flag)
 		{
@@ -317,7 +312,7 @@ int main(void)
 			check_sw5_status();
 		}
 	}
-  /* USER CODE END 3 */
+	/* USER CODE END 3 */
 }
 
 /**

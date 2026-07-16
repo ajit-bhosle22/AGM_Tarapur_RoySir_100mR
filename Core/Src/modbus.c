@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <inttypes.h>
+#include <math.h>
 #include "main.h"
 #include "main_global.h"
 #include "modbus.h"
@@ -15,8 +17,7 @@
 #include "DAC_Drvr.h"
 #include "fatfs_sd.h"
 #include "tcp_client.h"
-#include <inttypes.h>
-#include <math.h>
+
 
 #define MR_25_VAL            2.5f   //2.5mR
 #define MR_50_VAL            5.0f   //5mR
@@ -57,12 +58,12 @@ bool tcp_reconfig_required = false;
 bool rs485_reconfig_required = false;
 bool tcp_reconfig_required_pc = false;
 
-double dose_mRh;
+double dose_uRh;
 double e4mA_val  = 0.0f;
 double e20mA_val = 0.0f;
 char e4mA_buf[16];
 char e20mA_buf[16];
-uint32_t scaled_mr;
+uint32_t scaled_umr;
 
 char Factor1_Value[16]    = "1";
 char Factor2_Value[16]    = "1";
@@ -152,14 +153,14 @@ void update_cps_hv_mr(void)
 	Hv_Val = (Modbus_Registers_Detector.HV_MSB << 16)| (Modbus_Registers_Detector.HV_LSB);
 	Hv_Voltage = (float) (Hv_Val/100.0f);
 
-	dose_mRh = convert_cps_to_mr_h();
-	scaled_mr = (uint32_t)(dose_mRh * 1000.0f);
+	dose_uRh = convert_cps_to_ur_h();
+	scaled_umr = (uint32_t)(dose_uRh * 1000.0f);
 
-	Modbus_Registers.mR_MSB = (scaled_mr >>16) & 0xFFFF;
-	Modbus_Registers.mR_LSB = scaled_mr & 0xFFFF;
+	Modbus_Registers.mR_MSB = (scaled_umr >>16) & 0xFFFF;
+	Modbus_Registers.mR_LSB = scaled_umr & 0xFFFF;
 
-	Modbus_Registers_PC_TCP.mR_MSB = (scaled_mr >>16) & 0xFFFF;
-	Modbus_Registers_PC_TCP.mR_LSB = scaled_mr & 0xFFFF;
+	Modbus_Registers_PC_TCP.mR_MSB = (scaled_umr >>16) & 0xFFFF;
+	Modbus_Registers_PC_TCP.mR_LSB = scaled_umr & 0xFFFF;
 }
 
 void initialize_modbus_registers()
@@ -219,42 +220,43 @@ void config_CalibFactors_Variables(void)
     Factor4 = (f >= FACTOR_MIN) ? f : FACTOR_MIN;
 }
 
-double convert_cps_to_mr_h(void)
+double convert_cps_to_ur_h(void)
 {
-    double dose_mr = (double)CPS_VAL / (double)GM_TUBE_SENSITIVITY;
+	double dose_mr = (double)CPS_VAL / (double)GM_TUBE_SENSITIVITY;
 
-    if (dose_mr <= (MR_25_VAL * Factor1))
-    {
-        dose_mr = dose_mr / Factor1;
-    }
-    else if (dose_mr <= (MR_50_VAL * Factor2))
-    {
-        double raw_25 = MR_25_VAL * Factor1;
-        double raw_50 = MR_50_VAL * Factor2;
-        double f1     = 1.0 / Factor1;
-        double f2     = 1.0 / Factor2;
-        double r1     = dose_mr - raw_25;
-        double r2     = raw_50  - raw_25;
-        double factor = f1 + ((r1 * (f2 - f1)) / r2);
-        dose_mr = dose_mr * factor;
-    }
-    else if (dose_mr <= (MR_75_VAL * Factor3))
-    {
-        double raw_50 = MR_50_VAL * Factor2;
-        double raw_75 = MR_75_VAL * Factor3;
-        double f1     = 1.0 / Factor2;
-        double f2     = 1.0 / Factor3;
-        double r1     = dose_mr - raw_50;
-        double r2     = raw_75  - raw_50;
-        double factor = f1 + ((r1 * (f2 - f1)) / r2);
-        dose_mr = dose_mr * factor;
-    }
-    else if(dose_mr >= MR_100_VAL)
-    {
-        dose_mr = dose_mr / Factor4;
-    }
+	if (dose_mr <= (MR_25_VAL * Factor1))
+	{
+		dose_mr = dose_mr / Factor1;
+	}
+	else if (dose_mr <= (MR_50_VAL * Factor2))
+	{
+		double raw_25 = MR_25_VAL * Factor1;
+		double raw_50 = MR_50_VAL * Factor2;
+		double f1     = 1.0 / Factor1;
+		double f2     = 1.0 / Factor2;
+		double r1     = dose_mr - raw_25;
+		double r2     = raw_50  - raw_25;
+		double factor = f1 + ((r1 * (f2 - f1)) / r2);
+		dose_mr = dose_mr * factor;
+	}
+	else if (dose_mr <= (MR_75_VAL * Factor3))
+	{
+		double raw_50 = MR_50_VAL * Factor2;
+		double raw_75 = MR_75_VAL * Factor3;
+		double f1     = 1.0 / Factor2;
+		double f2     = 1.0 / Factor3;
+		double r1     = dose_mr - raw_50;
+		double r2     = raw_75  - raw_50;
+		double factor = f1 + ((r1 * (f2 - f1)) / r2);
+		dose_mr = dose_mr * factor;
+	}
+	else if(dose_mr >= MR_100_VAL)
+	{
+		dose_mr = dose_mr / Factor4;
+	}
 
-    return dose_mr;
+	double dose_uR = dose_mr * 1000.0;
+	return dose_uR;
 }
 
 // -----------------------Call From LCD Save-------------------
@@ -283,10 +285,10 @@ void Update_Registers(void)
 
 	Modbus_Registers.Alarm_Unit = alarm_unit;
 	Modbus_Registers_PC_TCP.Alarm_Unit = alarm_unit;
-	double z = atof(alarm_val);
-	uint32_t x;
-	z = z*100;
-	x = (uint32_t)(z + 0.5);
+//	double z = atof(alarm_val);
+	uint32_t x = atoi(alarm_val);
+//	z = z*100;
+//	x = (uint32_t)(z + 0.5);
 
 	Modbus_Registers.Alarm_Value_MSB = ((x>>16)&0xFFFF);
 	Modbus_Registers.Alarm_Value_LSB = (x & 0xFFFF);
@@ -295,9 +297,10 @@ void Update_Registers(void)
 
 	Modbus_Registers.Overrange_Unit = overrange_unit;
 	Modbus_Registers_PC_TCP.Overrange_Unit = overrange_unit;
-	z = atof(overrange_val);
-	z = z*100;
-	x = (uint32_t)(z + 0.5);
+//	z = atof(overrange_val);
+//	z = z*100;
+	x = atoi(overrange_val);
+//	x = (uint32_t)(z + 0.5);
 	Modbus_Registers.Overrange_MSB = ((x>>16)&0xFFFF);
 	Modbus_Registers.Overrange_LSB = (x & 0xFFFF);
 	Modbus_Registers_PC_TCP.Overrange_MSB = ((x>>16)&0xFFFF);
@@ -305,9 +308,10 @@ void Update_Registers(void)
 
 	Modbus_Registers.Overload_Unit = overload_unit;
 	Modbus_Registers_PC_TCP.Overload_Unit = overload_unit;
-	z = atof(overload_val);
-	z = z *100;
-	x = (uint32_t)(z + 0.5);
+//	z = atof(overload_val);
+//	z = z *100;
+//	x = (uint32_t)(z + 0.5);
+	x = atoi(overload_val);
 	Modbus_Registers.Overload_MSB = ((x>>16)&0xFFFF);
 	Modbus_Registers.Overload_LSB = (x & 0xFFFF);
 	Modbus_Registers_PC_TCP.Overload_MSB = ((x>>16)&0xFFFF);
@@ -315,9 +319,10 @@ void Update_Registers(void)
 
 	Modbus_Registers.Analog_4_to_20mA_Min_Unit = min_4_20_unit;
 	Modbus_Registers_PC_TCP.Analog_4_to_20mA_Min_Unit = min_4_20_unit;
-	z = atof(min_4_20_val);
-	z = z*100;
-	x = (uint32_t)(z + 0.5);
+//	z = atof(min_4_20_val);
+//	z = z*100;
+//	x = (uint32_t)(z + 0.5);
+	x = atoi(min_4_20_val);
 	Modbus_Registers.Analog_4_to_20mA_Min_MSB = ((x>>16)&0xFFFF);
 	Modbus_Registers.Analog_4_to_20mA_Min_LSB =  (x & 0xFFFF);
 	Modbus_Registers_PC_TCP.Analog_4_to_20mA_Min_MSB = ((x>>16)&0xFFFF);
@@ -325,9 +330,10 @@ void Update_Registers(void)
 
 	Modbus_Registers.Analog_4_to_20mA_Max_Unit = max_4_20_unit;
 	Modbus_Registers_PC_TCP.Analog_4_to_20mA_Max_Unit = max_4_20_unit;
-	z = atof(max_4_20_val);
-	z = z*100;
-	x = (uint32_t)(z + 0.5);
+//	z = atof(max_4_20_val);
+//	z = z*100;
+//	x = (uint32_t)(z + 0.5);
+	x = atoi(max_4_20_val);
 	Modbus_Registers.Analog_4_to_20mA_Max_MSB = ((x>>16)&0xFFFF);
 	Modbus_Registers.Analog_4_to_20mA_Max_LSB = (x & 0xFFFF);
 	Modbus_Registers_PC_TCP.Analog_4_to_20mA_Max_MSB = ((x>>16)&0xFFFF);
@@ -652,24 +658,35 @@ static void modbus_val_to_str(uint16_t msb, uint16_t lsb,
                                uint8_t unit, char* buf, size_t buf_size)
 {
     uint32_t k          = ((uint32_t)msb << 16) | lsb;
-    float    z          = ((float)k / 100.0f);
-    z                   = ((int)(z * 1000.0f + 0.5f)) / 1000.0f;
-    uint32_t factor_x100 = (uint32_t)(z * 100.0f + 0.5f);
-
-    if (unit_is_integer(unit))
+    if(k > 999999U)
     {
-        uint32_t int_val = factor_x100 / 100;
-        if (int_val > 99999U) int_val = 99999U;
-        snprintf(buf, buf_size, "%05lu  ", (unsigned long)int_val);
+    	k = 999999U;
     }
-    else
-    {
-        if ((factor_x100 / 100) > 9999U) factor_x100 = 999999U;
-        snprintf(buf, buf_size, "%04lu.%02lu",
-                 (unsigned long)(factor_x100 / 100),
-                 (unsigned long)(factor_x100 % 100));
-    }
+    snprintf(buf, buf_size, "%06lu  ", (unsigned long)k);
 }
+
+//static void modbus_val_to_str(uint16_t msb, uint16_t lsb,
+//                               uint8_t unit, char* buf, size_t buf_size)
+//{
+//    uint32_t k          = ((uint32_t)msb << 16) | lsb;
+//    float    z          = ((float)k / 100.0f);
+//    z                   = ((int)(z * 1000.0f + 0.5f)) / 1000.0f;
+//    uint32_t factor_x100 = (uint32_t)(z * 100.0f + 0.5f);
+//
+//    if (unit_is_integer(unit))
+//    {
+//        uint32_t int_val = factor_x100 / 100;
+//        if (int_val > 99999U) int_val = 99999U;
+//        snprintf(buf, buf_size, "%05lu  ", (unsigned long)int_val);
+//    }
+//    else
+//    {
+//        if ((factor_x100 / 100) > 9999U) factor_x100 = 999999U;
+//        snprintf(buf, buf_size, "%04lu.%02lu",
+//                 (unsigned long)(factor_x100 / 100),
+//                 (unsigned long)(factor_x100 % 100));
+//    }
+//}
 
 void conf_rs485_tcp(void)
 {
@@ -1541,216 +1558,214 @@ void validate_modbus_write_rs485(void)
 {
 	float value;
 
-    /* RTC */
-    if(Modbus_Registers_Write.RTC_DAY < 1 || Modbus_Registers_Write.RTC_DAY > 31){
-    	Modbus_Registers_Write.RTC_DAY = Modbus_Registers.RTC_DAY;
-    }
+	/* RTC */
+	if(Modbus_Registers_Write.RTC_DAY < 1 || Modbus_Registers_Write.RTC_DAY > 31){
+		Modbus_Registers_Write.RTC_DAY = Modbus_Registers.RTC_DAY;
+	}
 
-    if(Modbus_Registers_Write.RTC_MONTH < 1 || Modbus_Registers_Write.RTC_MONTH > 12){
-        Modbus_Registers_Write.RTC_MONTH = Modbus_Registers.RTC_MONTH;
-    }
+	if(Modbus_Registers_Write.RTC_MONTH < 1 || Modbus_Registers_Write.RTC_MONTH > 12){
+		Modbus_Registers_Write.RTC_MONTH = Modbus_Registers.RTC_MONTH;
+	}
 
-    if(Modbus_Registers_Write.RTC_YEAR > 3000){
-        Modbus_Registers_Write.RTC_YEAR = Modbus_Registers.RTC_YEAR;
-    }
+	if(Modbus_Registers_Write.RTC_YEAR > 3000){
+		Modbus_Registers_Write.RTC_YEAR = Modbus_Registers.RTC_YEAR;
+	}
 
-    if(Modbus_Registers_Write.RTC_HOUR > 23){
-        Modbus_Registers_Write.RTC_HOUR = Modbus_Registers.RTC_HOUR;
-    }
+	if(Modbus_Registers_Write.RTC_HOUR > 23){
+		Modbus_Registers_Write.RTC_HOUR = Modbus_Registers.RTC_HOUR;
+	}
 
-    if(Modbus_Registers_Write.RTC_MIN > 59){
-        Modbus_Registers_Write.RTC_MIN = Modbus_Registers.RTC_MIN;
-    }
+	if(Modbus_Registers_Write.RTC_MIN > 59){
+		Modbus_Registers_Write.RTC_MIN = Modbus_Registers.RTC_MIN;
+	}
 
-    if(Modbus_Registers_Write.RTC_SEC > 59){
-        Modbus_Registers_Write.RTC_SEC = Modbus_Registers.RTC_SEC;
-    }
+	if(Modbus_Registers_Write.RTC_SEC > 59){
+		Modbus_Registers_Write.RTC_SEC = Modbus_Registers.RTC_SEC;
+	}
 
-    /* READ_SD */
-    if(Modbus_Registers_Write.READ_SD > 1){
-        Modbus_Registers_Write.READ_SD = Modbus_Registers.READ_SD;
-    }
+	/* READ_SD */
+	if(Modbus_Registers_Write.READ_SD > 1){
+		Modbus_Registers_Write.READ_SD = Modbus_Registers.READ_SD;
+	}
 
-    /* SD MODE */
-    if(Modbus_Registers_Write.SD_MODE > 1){
-        Modbus_Registers_Write.SD_MODE = Modbus_Registers.SD_MODE;
-    }
+	/* SD MODE */
+	if(Modbus_Registers_Write.SD_MODE > 1){
+		Modbus_Registers_Write.SD_MODE = Modbus_Registers.SD_MODE;
+	}
 
-    /* ACK */
-    if(Modbus_Registers_Write.ACK > 1){
-        Modbus_Registers_Write.ACK = Modbus_Registers.ACK;
-    }
+	/* ACK */
+	if(Modbus_Registers_Write.ACK > 1){
+		Modbus_Registers_Write.ACK = Modbus_Registers.ACK;
+	}
 
-    /* RESET */
-    if(Modbus_Registers_Write.Reset > 1){
-        Modbus_Registers_Write.Reset = Modbus_Registers.Reset;
-    }
+	/* RESET */
+	if(Modbus_Registers_Write.Reset > 1){
+		Modbus_Registers_Write.Reset = Modbus_Registers.Reset;
+	}
 
-    /* AUDIO MODE */
-    if(Modbus_Registers_Write.AUDIO_MODE > 1){
-        Modbus_Registers_Write.AUDIO_MODE = Modbus_Registers.AUDIO_MODE;
-    }
+	/* AUDIO MODE */
+	if(Modbus_Registers_Write.AUDIO_MODE > 1){
+		Modbus_Registers_Write.AUDIO_MODE = Modbus_Registers.AUDIO_MODE;
+	}
 
-    /* PRIMARY UNIT */
-    if(Modbus_Registers_Write.Primary_Unit > 3){
-        Modbus_Registers_Write.Primary_Unit = Modbus_Registers.Primary_Unit;
-    }
+	/* PRIMARY UNIT */
+	if(Modbus_Registers_Write.Primary_Unit > 3){
+		Modbus_Registers_Write.Primary_Unit = Modbus_Registers.Primary_Unit;
+	}
 
-    /* AGM MODE */
-    if(Modbus_Registers_Write.AGM_MODE > 1){
-       Modbus_Registers_Write.AGM_MODE  = Modbus_Registers.AGM_MODE;
-    }
+	/* AGM MODE */
+	if(Modbus_Registers_Write.AGM_MODE > 1){
+		Modbus_Registers_Write.AGM_MODE  = Modbus_Registers.AGM_MODE;
+	}
 
-    /* FREQ FLAGS */
-    if(Modbus_Registers_Write.FREQ_RECV > 1){
-       Modbus_Registers_Write.FREQ_RECV = Modbus_Registers.FREQ_RECV;
-    }
+	/* FREQ FLAGS */
+	if(Modbus_Registers_Write.FREQ_RECV > 1){
+		Modbus_Registers_Write.FREQ_RECV = Modbus_Registers.FREQ_RECV;
+	}
 
-    if(Modbus_Registers_Write.FREQ_DTC > 1){
-       Modbus_Registers_Write.FREQ_DTC = Modbus_Registers.FREQ_DTC;
-    }
+	if(Modbus_Registers_Write.FREQ_DTC > 1){
+		Modbus_Registers_Write.FREQ_DTC = Modbus_Registers.FREQ_DTC;
+	}
 
-    /* ALARM VALUE <= 9999.99 */
-    value = get_float_from_regs(
-            Modbus_Registers_Write.Alarm_Value_MSB,
-            Modbus_Registers_Write.Alarm_Value_LSB);
+	/* ALARM VALUE <= 999999 */
+	uint32_t val =  (Modbus_Registers_Write.Alarm_Value_MSB << 16) | (Modbus_Registers_Write.Alarm_Value_LSB);
 
-    if(value > 9999.99f){
-        Modbus_Registers_Write.Alarm_Value_MSB = Modbus_Registers.Alarm_Value_MSB;
-        Modbus_Registers_Write.Alarm_Value_LSB = Modbus_Registers.Alarm_Value_LSB;
-    }
+	if(val > 999999U){
+		Modbus_Registers_Write.Alarm_Value_MSB = Modbus_Registers.Alarm_Value_MSB;
+		Modbus_Registers_Write.Alarm_Value_LSB = Modbus_Registers.Alarm_Value_LSB;
+	}
 
-    if(Modbus_Registers_Write.Alarm_Unit > 3){
-        Modbus_Registers_Write.Alarm_Unit = Modbus_Registers.Alarm_Unit;
-    }
+	if(Modbus_Registers_Write.Alarm_Unit > 3){
+		Modbus_Registers_Write.Alarm_Unit = Modbus_Registers.Alarm_Unit;
+	}
 
-    /* RS485 */
-    if(Modbus_Registers_Write.RS485_Slave_Id > 999){
-       Modbus_Registers_Write.RS485_Slave_Id = Modbus_Registers.RS485_Slave_Id;
-    }
+	/* RS485 */
+	if(Modbus_Registers_Write.RS485_Slave_Id > 999){
+		Modbus_Registers_Write.RS485_Slave_Id = Modbus_Registers.RS485_Slave_Id;
+	}
 
-    if(Modbus_Registers_Write.RS485_Baud_Rate > 7){
-       Modbus_Registers_Write.RS485_Baud_Rate = Modbus_Registers.RS485_Baud_Rate;
-    }
+	if(Modbus_Registers_Write.RS485_Baud_Rate > 7){
+		Modbus_Registers_Write.RS485_Baud_Rate = Modbus_Registers.RS485_Baud_Rate;
+	}
 
-    /* PASSWORD */
-    uint32_t pass_val = (Modbus_Registers_Write.PASSWORD_MSB << 16) | (Modbus_Registers_Write.PASSWORD_LSB);
+	/* PASSWORD */
+	uint32_t pass_val = (Modbus_Registers_Write.PASSWORD_MSB << 16) | (Modbus_Registers_Write.PASSWORD_LSB);
 
-    if(pass_val > 9999){
-        Modbus_Registers_Write.PASSWORD_MSB = Modbus_Registers.PASSWORD_MSB;
-        Modbus_Registers_Write.PASSWORD_LSB = Modbus_Registers.PASSWORD_LSB;
-    }
+	if(pass_val > 9999U){
+		Modbus_Registers_Write.PASSWORD_MSB = Modbus_Registers.PASSWORD_MSB;
+		Modbus_Registers_Write.PASSWORD_LSB = Modbus_Registers.PASSWORD_LSB;
+	}
 
-    /* Ethernet */
-    if(!validate_ip(Modbus_Registers_Write.Ethernet_IP_MSB,Modbus_Registers_Write.Ethernet_IP_LSB)){
-        Modbus_Registers_Write.Ethernet_IP_MSB = Modbus_Registers.Ethernet_IP_MSB;
-        Modbus_Registers_Write.Ethernet_IP_LSB = Modbus_Registers.Ethernet_IP_LSB;
-    }
+	/* Ethernet */
+	if(!validate_ip(Modbus_Registers_Write.Ethernet_IP_MSB,Modbus_Registers_Write.Ethernet_IP_LSB)){
+		Modbus_Registers_Write.Ethernet_IP_MSB = Modbus_Registers.Ethernet_IP_MSB;
+		Modbus_Registers_Write.Ethernet_IP_LSB = Modbus_Registers.Ethernet_IP_LSB;
+	}
 
-    if(!validate_subnet(Modbus_Registers_Write.Ethernet_Subnet_MSB,Modbus_Registers_Write.Ethernet_Subnet_LSB)){
-        Modbus_Registers_Write.Ethernet_Subnet_MSB = Modbus_Registers.Ethernet_Subnet_MSB;
-        Modbus_Registers_Write.Ethernet_Subnet_LSB = Modbus_Registers.Ethernet_Subnet_LSB;
-    }
+	if(!validate_subnet(Modbus_Registers_Write.Ethernet_Subnet_MSB,Modbus_Registers_Write.Ethernet_Subnet_LSB)){
+		Modbus_Registers_Write.Ethernet_Subnet_MSB = Modbus_Registers.Ethernet_Subnet_MSB;
+		Modbus_Registers_Write.Ethernet_Subnet_LSB = Modbus_Registers.Ethernet_Subnet_LSB;
+	}
 
-    if(!validate_gateway(Modbus_Registers_Write.Ethernet_Gateway_MSB,Modbus_Registers_Write.Ethernet_Gateway_LSB))
-    {
-        Modbus_Registers_Write.Ethernet_Gateway_MSB = Modbus_Registers.Ethernet_Gateway_MSB;
-        Modbus_Registers_Write.Ethernet_Gateway_LSB = Modbus_Registers.Ethernet_Gateway_LSB;
-    }
+	if(!validate_gateway(Modbus_Registers_Write.Ethernet_Gateway_MSB,Modbus_Registers_Write.Ethernet_Gateway_LSB))
+	{
+		Modbus_Registers_Write.Ethernet_Gateway_MSB = Modbus_Registers.Ethernet_Gateway_MSB;
+		Modbus_Registers_Write.Ethernet_Gateway_LSB = Modbus_Registers.Ethernet_Gateway_LSB;
+	}
 
-    if(Modbus_Registers_Write.Ethernet_Slave_Id > 247){
-        Modbus_Registers_Write.Ethernet_Slave_Id = Modbus_Registers.Ethernet_Slave_Id;
-    }
+	if(Modbus_Registers_Write.Ethernet_Slave_Id > 247){
+		Modbus_Registers_Write.Ethernet_Slave_Id = Modbus_Registers.Ethernet_Slave_Id;
+	}
 
-    if(!validate_port(Modbus_Registers_Write.Ethernet_Port)){
-        Modbus_Registers_Write.Ethernet_Port = Modbus_Registers.Ethernet_Port;
-    }
+	if(!validate_port(Modbus_Registers_Write.Ethernet_Port)){
+		Modbus_Registers_Write.Ethernet_Port = Modbus_Registers.Ethernet_Port;
+	}
 
-    /* PC IP */
-    if(!validate_ip(Modbus_Registers_Write.Ethernet_IP_MSB_PC,Modbus_Registers_Write.Ethernet_IP_LSB_PC))
-    {
-        Modbus_Registers_Write.Ethernet_IP_MSB_PC = Modbus_Registers.Ethernet_IP_MSB_PC;
-        Modbus_Registers_Write.Ethernet_IP_LSB_PC = Modbus_Registers.Ethernet_IP_LSB_PC;
-    }
+	/* PC IP */
+	if(!validate_ip(Modbus_Registers_Write.Ethernet_IP_MSB_PC,Modbus_Registers_Write.Ethernet_IP_LSB_PC))
+	{
+		Modbus_Registers_Write.Ethernet_IP_MSB_PC = Modbus_Registers.Ethernet_IP_MSB_PC;
+		Modbus_Registers_Write.Ethernet_IP_LSB_PC = Modbus_Registers.Ethernet_IP_LSB_PC;
+	}
 
-    if(!validate_port(Modbus_Registers_Write.Ethernet_Port_PC)){
-        Modbus_Registers_Write.Ethernet_Port_PC = Modbus_Registers.Ethernet_Port_PC;
-    }
+	if(!validate_port(Modbus_Registers_Write.Ethernet_Port_PC)){
+		Modbus_Registers_Write.Ethernet_Port_PC = Modbus_Registers.Ethernet_Port_PC;
+	}
 
-    /* OVERLOAD */
-    value = get_float_from_regs(Modbus_Registers_Write.Overload_MSB,Modbus_Registers_Write.Overload_LSB);
+	/* OVERLOAD */
+	val = (Modbus_Registers_Write.Overload_MSB << 16) | (Modbus_Registers_Write.Overload_LSB);
 
-    if(value > 9999.99f){
-        Modbus_Registers_Write.Overload_MSB = Modbus_Registers.Overload_MSB;
-        Modbus_Registers_Write.Overload_LSB = Modbus_Registers.Overload_LSB;
-    }
+	if(val > 999999U){
+		Modbus_Registers_Write.Overload_MSB = Modbus_Registers.Overload_MSB;
+		Modbus_Registers_Write.Overload_LSB = Modbus_Registers.Overload_LSB;
+	}
 
-    if(Modbus_Registers_Write.Overload_Unit > 3){
-       Modbus_Registers_Write.Overload_Unit = Modbus_Registers.Overload_Unit;
-    }
+	if(Modbus_Registers_Write.Overload_Unit > 3){
+		Modbus_Registers_Write.Overload_Unit = Modbus_Registers.Overload_Unit;
+	}
 
-    /* OVERRANGE */
-    value = get_float_from_regs(Modbus_Registers_Write.Overrange_MSB,Modbus_Registers_Write.Overrange_LSB);
+	/* OVERRANGE */
+	val = (Modbus_Registers_Write.Overrange_MSB << 16) | (Modbus_Registers_Write.Overrange_LSB);
 
-    if(value > 9999.99f){
-       Modbus_Registers_Write.Overrange_MSB = Modbus_Registers.Overrange_MSB;
-       Modbus_Registers_Write.Overrange_LSB = Modbus_Registers.Overrange_LSB;
-    }
+	if(val > 999999U){
+		Modbus_Registers_Write.Overrange_MSB = Modbus_Registers.Overrange_MSB;
+		Modbus_Registers_Write.Overrange_LSB = Modbus_Registers.Overrange_LSB;
+	}
 
-    if(Modbus_Registers_Write.Overrange_Unit > 3){
-       Modbus_Registers_Write.Overrange_Unit = Modbus_Registers.Overrange_Unit;
-    }
+	if(Modbus_Registers_Write.Overrange_Unit > 3){
+		Modbus_Registers_Write.Overrange_Unit = Modbus_Registers.Overrange_Unit;
+	}
 
-    /* ANALOG MIN */
-    value = get_float_from_regs(Modbus_Registers_Write.Analog_4_to_20mA_Min_MSB,Modbus_Registers_Write.Analog_4_to_20mA_Min_LSB);
+	/* ANALOG MIN */
+	val = (Modbus_Registers_Write.Analog_4_to_20mA_Min_MSB << 16) | (Modbus_Registers_Write.Analog_4_to_20mA_Min_LSB);
 
-    if(value > 9999.99f){
-       Modbus_Registers_Write.Analog_4_to_20mA_Min_MSB = Modbus_Registers.Analog_4_to_20mA_Min_MSB;
-       Modbus_Registers_Write.Analog_4_to_20mA_Min_LSB = Modbus_Registers.Analog_4_to_20mA_Min_LSB;
-    }
+	if(val > 999999U){
+		Modbus_Registers_Write.Analog_4_to_20mA_Min_MSB = Modbus_Registers.Analog_4_to_20mA_Min_MSB;
+		Modbus_Registers_Write.Analog_4_to_20mA_Min_LSB = Modbus_Registers.Analog_4_to_20mA_Min_LSB;
+	}
 
-    if(Modbus_Registers_Write.Analog_4_to_20mA_Min_Unit > 3){
-       Modbus_Registers_Write.Analog_4_to_20mA_Min_Unit = Modbus_Registers.Analog_4_to_20mA_Min_Unit;
-    }
+	if(Modbus_Registers_Write.Analog_4_to_20mA_Min_Unit > 3){
+		Modbus_Registers_Write.Analog_4_to_20mA_Min_Unit = Modbus_Registers.Analog_4_to_20mA_Min_Unit;
+	}
 
-    /* ANALOG MAX */
-    value = get_float_from_regs(Modbus_Registers_Write.Analog_4_to_20mA_Max_MSB,Modbus_Registers_Write.Analog_4_to_20mA_Max_LSB);
+	/* ANALOG MAX */
+	val = (Modbus_Registers_Write.Analog_4_to_20mA_Max_MSB << 16) | (Modbus_Registers_Write.Analog_4_to_20mA_Max_LSB);
 
-    if(value > 9999.99f){
-       Modbus_Registers_Write.Analog_4_to_20mA_Max_MSB = Modbus_Registers.Analog_4_to_20mA_Max_MSB;
-       Modbus_Registers_Write.Analog_4_to_20mA_Max_LSB = Modbus_Registers.Analog_4_to_20mA_Max_LSB;
-    }
+	if(val > 999999U){
+		Modbus_Registers_Write.Analog_4_to_20mA_Max_MSB = Modbus_Registers.Analog_4_to_20mA_Max_MSB;
+		Modbus_Registers_Write.Analog_4_to_20mA_Max_LSB = Modbus_Registers.Analog_4_to_20mA_Max_LSB;
+	}
 
-    if(Modbus_Registers_Write.Analog_4_to_20mA_Max_Unit > 3){
-       Modbus_Registers_Write.Analog_4_to_20mA_Max_Unit = Modbus_Registers.Analog_4_to_20mA_Max_Unit;
-    }
+	if(Modbus_Registers_Write.Analog_4_to_20mA_Max_Unit > 3){
+		Modbus_Registers_Write.Analog_4_to_20mA_Max_Unit = Modbus_Registers.Analog_4_to_20mA_Max_Unit;
+	}
 
-    /* HV */
-    value = get_float_from_regs(
-            Modbus_Registers_Write.HV_MSB,
-            Modbus_Registers_Write.HV_LSB);
+	/* HV */
+	value = get_float_from_regs(
+			Modbus_Registers_Write.HV_MSB,
+			Modbus_Registers_Write.HV_LSB);
 
-    if(value > 1500.0f){
-        Modbus_Registers_Write.HV_MSB = Modbus_Registers.HV_MSB;
-        Modbus_Registers_Write.HV_LSB = Modbus_Registers.HV_LSB;
-    }
+	if(value > 1500.0f){
+		Modbus_Registers_Write.HV_MSB = Modbus_Registers.HV_MSB;
+		Modbus_Registers_Write.HV_LSB = Modbus_Registers.HV_LSB;
+	}
 
-    /* Calibration */
-    if(Modbus_Registers_Write.CALIB_FACTOR1 > 9999){
-      Modbus_Registers_Write.CALIB_FACTOR1 = Modbus_Registers.CALIB_FACTOR1;
-    }
+	/* Calibration */
+	if(Modbus_Registers_Write.CALIB_FACTOR1 > 9999){
+		Modbus_Registers_Write.CALIB_FACTOR1 = Modbus_Registers.CALIB_FACTOR1;
+	}
 
-    if(Modbus_Registers_Write.CALIB_FACTOR2 > 9999){
-      Modbus_Registers_Write.CALIB_FACTOR2 = Modbus_Registers.CALIB_FACTOR2;
-    }
+	if(Modbus_Registers_Write.CALIB_FACTOR2 > 9999){
+		Modbus_Registers_Write.CALIB_FACTOR2 = Modbus_Registers.CALIB_FACTOR2;
+	}
 
-    if(Modbus_Registers_Write.CALIB_FACTOR3 > 9999){
-      Modbus_Registers_Write.CALIB_FACTOR3 = Modbus_Registers.CALIB_FACTOR3;
-    }
+	if(Modbus_Registers_Write.CALIB_FACTOR3 > 9999){
+		Modbus_Registers_Write.CALIB_FACTOR3 = Modbus_Registers.CALIB_FACTOR3;
+	}
 
-    if(Modbus_Registers_Write.CALIB_FACTOR4 > 9999){
-       Modbus_Registers_Write.CALIB_FACTOR4 = Modbus_Registers.CALIB_FACTOR4;
-    }
+	if(Modbus_Registers_Write.CALIB_FACTOR4 > 9999){
+		Modbus_Registers_Write.CALIB_FACTOR4 = Modbus_Registers.CALIB_FACTOR4;
+	}
 
 }
 

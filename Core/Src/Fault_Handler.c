@@ -40,7 +40,7 @@ float Hv_Voltage = 0.0f;
 uint32_t CPS_VAL;
 
 char Current_Agm_Mode[10] = "";
-volatile float radiation_uSv;
+volatile float radiation_uR;
 
 void Buzzer_On(void)          { HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, GPIO_PIN_SET); }
 void Buzzer_Off(void)         { HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, GPIO_PIN_RESET); }
@@ -70,13 +70,12 @@ void Panel_LED_mRh_Off(void)  { HAL_GPIO_WritePin(LED_1_GPIO_Port,LED_1_Pin,GPIO
 void Relay1_On(void)          {	HAL_GPIO_WritePin(GPIOD,GPIO_PIN_9,GPIO_PIN_SET);}
 void Relay1_Off(void)         {	HAL_GPIO_WritePin(GPIOD,GPIO_PIN_9,GPIO_PIN_RESET);}
 
-
 unit_t Get_Unit(uint8_t unit)
 {
 	switch(unit)
 	{
 	  case 0:
-		 return UNIT_mR_H;
+		 return UNIT_uR_H;
 	  case 1:
 		 return UNIT_uSV_H;
 	  case 2:
@@ -84,26 +83,46 @@ unit_t Get_Unit(uint8_t unit)
 	  case 3:
 		 return UNIT_CPM;
 	  default:
-		 return UNIT_mR_H;
+		 return UNIT_uR_H;
 	}
 }
 
-float Convert_To_uSv(float value, unit_t unit)
+float Convert_To_uR_H(float value, unit_t unit)
 {
-	switch(unit)
-	{
-	case UNIT_uSV_H:
-		return value;
-	case UNIT_mR_H:
-		return value * 10.0f;
-	case UNIT_CPS:
-		 return (value / GM_TUBE_SENSITIVITY) * 10.0f;
-	case UNIT_CPM:
-		 return ((cpm/60) / GM_TUBE_SENSITIVITY) * 10.0f;
-	default:
-		return 0.0f;
-	}
+    switch(unit)
+    {
+    case UNIT_uR_H:
+        return value;
+    case UNIT_uSV_H:
+        // 1 uR/h = 0.01 uSv/h  ->  1 uSv/h = 100 uR/h
+        return value * 100.0f;
+    case UNIT_CPS:
+        // (CPS / sensitivity) = mR/h, * 1000 = uR/h
+        return (value / GM_TUBE_SENSITIVITY) * 1000.0f;
+    case UNIT_CPM:
+        // (CPM/60 / sensitivity) = mR/h, * 1000 = uR/h
+        return ((value / 60.0f) / GM_TUBE_SENSITIVITY) * 1000.0f;
+    default:
+        return 0.0f;
+    }
 }
+
+//float Convert_To_uSv(float value, unit_t unit)
+//{
+//	switch(unit)
+//	{
+//	case UNIT_uSV_H:
+//		return value;
+//	case UNIT_uR_H:
+//		return value * 0.01f;
+//	case UNIT_CPS:
+//		 return (value / GM_TUBE_SENSITIVITY) * 10.0f;
+//	case UNIT_CPM:
+//		 return ((cpm/60) / GM_TUBE_SENSITIVITY) * 10.0f;
+//	default:
+//		return 0.0f;
+//	}
+//}
 
 void Check_Fault_Conditions(void)
 {
@@ -127,20 +146,20 @@ void Check_Fault_Conditions(void)
     	boot_up_time_tick_hv = HAL_GetTick();
     }
 
-	// --------------Convert Dose_mR to uSv/h------------
-	radiation_uSv = dose_mRh * 10.0f;
+	// --------------Base Unit uRh------------------------
+	radiation_uR = dose_uRh;
 
 	// --------------Alarm Fault Condition----------------
 	unit_t alarm_unit_t = Get_Unit(alarm_unit);
-	alarm_threshold = Convert_To_uSv(atof(alarm_val), alarm_unit_t);
+	alarm_threshold = Convert_To_uR_H(atof(alarm_val), alarm_unit_t);
 
 	// --------------Overload Fault Condition-------------
 	unit_t overload_unit_t = Get_Unit(overload_unit);
-	overload_threshold = Convert_To_uSv(atof(overload_val),overload_unit_t);
+	overload_threshold = Convert_To_uR_H(atof(overload_val),overload_unit_t);
 
 	// --------------Overrange Fault Condition------------
 	unit_t overrun_unit_t = Get_Unit(overrange_unit);
-	overrun_threshold = Convert_To_uSv(atof(overrange_val),overrun_unit_t);
+	overrun_threshold = Convert_To_uR_H(atof(overrange_val),overrun_unit_t);
 
 	// ---------------Check Detector Failed --------------
 	if(Dtc_Failed_Timeout >= 3)
@@ -192,7 +211,7 @@ void Check_Fault_Conditions(void)
 	{
 		// -----DTC Failed Reset Dose Rate----
 		CPS_VAL = 0;
-		radiation_uSv = 0;
+		radiation_uR = 0;
 
 		// ------Reset CPS/HV Voltage---------
 		Modbus_Registers_Detector.CPS_MSB = 0;
@@ -201,7 +220,7 @@ void Check_Fault_Conditions(void)
 		Modbus_Registers_Detector.HV_LSB  = 0;
 	}
 
-	if(radiation_uSv >= overload_threshold && State_Flag != Overload_Flag && State_Flag != Ack_Flag_OverLoad
+	if(radiation_uR >= overload_threshold && State_Flag != Overload_Flag && State_Flag != Ack_Flag_OverLoad
 	&& State_Flag != Dtc_Failed_Flag)
 	{
 		State_Flag=Overload_Flag;
@@ -216,7 +235,7 @@ void Check_Fault_Conditions(void)
 		// ----To Auto Ack After One Min----
 		last_tick_time_ack=HAL_GetTick();
 	}
-	else if(radiation_uSv >= overrun_threshold && State_Flag !=Overrun_Flag  && State_Flag != Overload_Flag
+	else if(radiation_uR >= overrun_threshold && State_Flag !=Overrun_Flag  && State_Flag != Overload_Flag
 	&& State_Flag != Ack_Flag_OverLoad && State_Flag != Ack_Flag_Overrun  && State_Flag != Dtc_Failed_Flag)
 	{
 		State_Flag=Overrun_Flag;
@@ -230,7 +249,7 @@ void Check_Fault_Conditions(void)
 		// -----To Auto Ack After One Min----
 		last_tick_time_ack=HAL_GetTick();
 	}
-	else if(radiation_uSv >= alarm_threshold && State_Flag != Alarm_Flag
+	else if(radiation_uR >= alarm_threshold && State_Flag != Alarm_Flag
 	&& State_Flag != Ack_Flag_Alarm && State_Flag != Overload_Flag
 	&& State_Flag != Ack_Flag_OverLoad && State_Flag != Overrun_Flag
 	&& State_Flag != Ack_Flag_Overrun && State_Flag != Dtc_Failed_Flag)
@@ -294,9 +313,9 @@ void Check_Fault_Conditions(void)
 	}
 
 	// -------------------Normal Condition---------------------------------
-	if(((State_Flag == Ack_Flag_OverLoad && radiation_uSv < overload_threshold)||
-	(State_Flag == Ack_Flag_Alarm && radiation_uSv < alarm_threshold )
-	||(State_Flag == Ack_Flag_Overrun && radiation_uSv < overrun_threshold)) &&
+	if(((State_Flag == Ack_Flag_OverLoad && radiation_uR < overload_threshold)||
+	(State_Flag == Ack_Flag_Alarm && radiation_uR < alarm_threshold )
+	||(State_Flag == Ack_Flag_Overrun && radiation_uR < overrun_threshold)) &&
 	(reset_pressed == 1 || agm_mode == 1) && State_Flag != Dtc_Failed_Flag)
 	{
 		State_Flag = Normal_Flag;

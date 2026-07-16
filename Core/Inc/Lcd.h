@@ -242,6 +242,7 @@ void display_server_failed_status(void);
 void display_data_writing(void);
 void display_data_writing_done(void);
 void display_server_wait(void);
+void update_7_seg(void);
 bool IsLeapYear(uint16_t year);
 
 #endif /* INC_LCD_H_ */

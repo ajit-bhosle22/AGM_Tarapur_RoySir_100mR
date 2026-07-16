@@ -178,11 +178,12 @@ bool write_hv_val_dtc = false;
 
 uint8_t edit_pos_index = 0;
 uint8_t edit_pos_index_hv = 0;
-const uint8_t editable_indices_hv[] = {0, 1, 2, 3, 5, 6};
-const uint8_t editable_indices[] = {0,1,2,3,5,6,8};
-static const uint8_t editable_indices_decimal[] = {0, 1, 2, 3, 5, 6, 8};
-static const uint8_t editable_indices_integer[] = {0, 1, 2, 3, 4,    8};
-const uint8_t cal_editable_indices[] = {0,1,3,4};
+const uint8_t editable_indices_hv[]     = {0, 1, 2, 3, 5, 6};
+static const uint8_t editable_indices[] = {0,1,2,3,4,5,8}; //0-5 val , 8 for unit
+const uint8_t cal_editable_indices[]    = {0,1,3,4,5,6};
+
+//static const uint8_t editable_indices_decimal[] = {0, 1, 2, 3, 5, 6, 8};
+//static const uint8_t editable_indices_integer[] = {0, 1, 2, 3, 4,    8};
 
 System_Screen_t prev_lcd_screen = 0xff;
 
@@ -202,24 +203,24 @@ char    prev_temp_baud_rate_str[12]="";
 uint8_t temp_alarm_unit = 0;
 uint8_t prev_temp_alarm_unit = 0xff;
 char    prev_temp_hv_write[8] = "";
-char    temp_hv_write[8] = "0000.00";
-char    temp_alarm_val[8] = "0000.00";
+char    temp_hv_write[8] = "000000";
+char    temp_alarm_val[8] = "000000";
 char    prev_temp_alarm_val[8]="";
 uint8_t temp_overrange_unit = 0;
 uint8_t prev_temp_overrange_unit = 0xff;
-char    temp_overrange_val[8] = "0000.00";
+char    temp_overrange_val[8] = "000000";
 char    prev_temp_overrange_val[8]="";
 uint8_t temp_overload_unit = 0;
 uint8_t prev_temp_overload_unit = 0xff;
-char    temp_overload_val[8] = "0000.00";
+char    temp_overload_val[8] = "000000";
 char    prev_temp_overload_val[8]="";
 uint8_t temp_4_20_min_unit = 0;
 uint8_t prev_temp_4_20_min_unit = 0xff;
-char    temp_4_20_min_val[8] = "0000.00";
+char    temp_4_20_min_val[8] = "000000";
 char    prev_temp_4_20_min_val[8]="";
 uint8_t temp_4_20_max_unit = 0;
 uint8_t prev_temp_4_20_max_unit = 0xff;
-char    temp_4_20_max_val[8] = "0000.00";
+char    temp_4_20_max_val[8] = "000000";
 char    prev_temp_4_20_max_val[8]="";
 char    prev_temp_4_20_min_cal_val[8]="";
 char    temp_4_20_min_cal_val[8]="00.0000";
@@ -262,7 +263,7 @@ char temp_password[5] = "1234";
 char correct_password[5] = "1234";
 char entered_password[5];
 
-static char* Unit_Str_Options[]={"mR/h ","uSv/h  ","cps  ","cpm  "};
+static char* Unit_Str_Options[]={"uR/h ","uSv/h  ","cps  ","cpm  "};
 
 /* --------------- ETHERNET SCREEN (FOR DEVICE)------------------------*/
 char eth_slave_id[4]   = "001";
@@ -300,15 +301,15 @@ uint8_t baud_rate=0;
 char primary_unit_str[12];
 char baud_rate_str[12];
 uint8_t alarm_unit = 0;
-char alarm_val[8] = "0000.00";
+char alarm_val[8] = "000000";
 uint8_t overrange_unit = 0;
-char overrange_val[8] = "0000.00";
+char overrange_val[8] = "000000";
 uint8_t overload_unit = 0;
-char overload_val[8] = "0000.00";
+char overload_val[8] = "000000";
 uint8_t min_4_20_unit = 0;
-char min_4_20_val[8] = "0000.00";
+char min_4_20_val[8] = "000000";
 uint8_t max_4_20_unit = 0;
-char max_4_20_val[8] = "0000.00";
+char max_4_20_val[8] = "000000";
 uint8_t agm_mode = 0;
 
 // ---------------Saved ETH (FOR DEVICE)---------------------
@@ -344,14 +345,42 @@ uint8_t unit_is_integer(uint8_t unit)
 	return unit == 2 || unit == 3;
 }
 
-static const uint8_t* get_index_table(uint8_t unit, uint8_t *out_len)
+const uint8_t* get_index_table(uint8_t unit, uint8_t *len)
 {
-    if (unit_is_integer(unit)) { *out_len = 6; return editable_indices_integer; }
-    else                       { *out_len = 7; return editable_indices_decimal; }
+    (void)unit;
+
+    *len = sizeof(editable_indices);
+    return editable_indices;
 }
+
+//static const uint8_t* get_index_table(uint8_t unit, uint8_t *out_len)
+//{
+//    if (unit_is_integer(unit)) { *out_len = 6; return editable_indices_integer; }
+//    else                       { *out_len = 7; return editable_indices_decimal; }
+//}
 
 bool check_calib_fact_change(void)
 {
+	uint32_t k = Modbus_Registers.CALIB_FACTOR1;
+	uint32_t int_part  = k / 100;
+	uint32_t frac_part = k % 100;
+	snprintf(Factor1_Value, sizeof(Factor1_Value), "%02lu.%02lu", int_part, frac_part);
+
+	k         = Modbus_Registers.CALIB_FACTOR2;
+    int_part  = k / 100;
+    frac_part = k % 100;
+    snprintf(Factor2_Value, sizeof(Factor2_Value), "%02lu.%02lu", int_part, frac_part);
+
+	k        = Modbus_Registers.CALIB_FACTOR3;
+	int_part  = k / 100;
+	frac_part = k % 100;
+	snprintf(Factor3_Value, sizeof(Factor3_Value), "%02lu.%02lu", int_part, frac_part);
+
+	k        = Modbus_Registers.CALIB_FACTOR4;
+	int_part  = k / 100;
+	frac_part = k % 100;
+	snprintf(Factor4_Value, sizeof(Factor4_Value), "%02lu.%02lu", int_part, frac_part);
+
 	float saved_vals[4] = {
 			atof(Factor1_Value),
 			atof(Factor2_Value),
@@ -2266,7 +2295,7 @@ void lcd_ethernet_screen_init_pc(void)
 	lcd_clear();
 	lcd_cursor_off();
 	lcd_set_cursor(0,0);
-	lcd_print("  PC  EHT SET   ");
+	lcd_print("   PC EHT SET   ");
 	lcd_cursor_off();
 	prev_eth_menu_pc = ETH_MENU_MAX_PC;
 }
@@ -2786,27 +2815,21 @@ void select_rtc_format_val(char *val)
 	}
 }
 
-void select_alarm_format_val(char* val, uint8_t* unit)
+void select_alarm_format_val(char *val, uint8_t *unit)
 {
     uint8_t tbl_len;
-    const uint8_t* tbl = get_index_table(*unit, &tbl_len);
+    const uint8_t *tbl = get_index_table(*unit, &tbl_len);
 
     if (sw1_press_flag)
     {
         sw1_press_flag = false;
+
         uint8_t str_index = tbl[edit_pos_index];
 
         if (str_index == 8)
         {
-            uint8_t old_is_int = unit_is_integer(*unit);
-            *unit = (*unit == 3) ? 0 : (*unit + 1);
-            uint8_t new_is_int = unit_is_integer(*unit);
-
-            if (!old_is_int && new_is_int) convert_val_to_integer(val);
-            if ( old_is_int && !new_is_int) convert_val_to_decimal(val);
-
-            tbl = get_index_table(*unit, &tbl_len);
-            edit_pos_index = tbl_len - 1;
+            // Next Unit
+            *unit = (*unit + 1) % 4;
         }
         else
         {
@@ -2817,19 +2840,13 @@ void select_alarm_format_val(char* val, uint8_t* unit)
     if (sw2_press_flag)
     {
         sw2_press_flag = false;
+
         uint8_t str_index = tbl[edit_pos_index];
 
         if (str_index == 8)
         {
-            uint8_t old_is_int = unit_is_integer(*unit);
+            // Previous Unit
             *unit = (*unit == 0) ? 3 : (*unit - 1);
-            uint8_t new_is_int = unit_is_integer(*unit);
-
-            if (!old_is_int && new_is_int) convert_val_to_integer(val);
-            if ( old_is_int && !new_is_int) convert_val_to_decimal(val);
-
-            tbl = get_index_table(*unit, &tbl_len);
-            edit_pos_index = tbl_len - 1;
         }
         else
         {
@@ -2844,21 +2861,96 @@ void select_alarm_format_val(char* val, uint8_t* unit)
     }
 
     tbl = get_index_table(*unit, &tbl_len);
-    uint8_t str_index = tbl[edit_pos_index];
 
+    uint8_t str_index = tbl[edit_pos_index];
     uint8_t lcd_col;
+
     if (str_index == 8)
     {
-        lcd_col = 10;
+        lcd_col = 10;              // Cursor on unit field
     }
     else
     {
-        lcd_col = str_index + 2;
+        lcd_col = str_index + 2;   // Digits start at LCD column 2
     }
 
     lcd_set_cursor(1, lcd_col);
     lcd_cursor_on();
 }
+
+//void select_alarm_format_val(char* val, uint8_t* unit)
+//{
+//    uint8_t tbl_len;
+//    const uint8_t* tbl = get_index_table(*unit, &tbl_len);
+//
+//    if (sw1_press_flag)
+//    {
+//        sw1_press_flag = false;
+//        uint8_t str_index = tbl[edit_pos_index];
+//
+//        if (str_index == 8)
+//        {
+//            uint8_t old_is_int = unit_is_integer(*unit);
+//            *unit = (*unit == 3) ? 0 : (*unit + 1);
+//            uint8_t new_is_int = unit_is_integer(*unit);
+//
+//            if (!old_is_int && new_is_int) convert_val_to_integer(val);
+//            if ( old_is_int && !new_is_int) convert_val_to_decimal(val);
+//
+//            tbl = get_index_table(*unit, &tbl_len);
+//            edit_pos_index = tbl_len - 1;
+//        }
+//        else
+//        {
+//            val[str_index] = (val[str_index] == '9') ? '0' : val[str_index] + 1;
+//        }
+//    }
+//
+//    if (sw2_press_flag)
+//    {
+//        sw2_press_flag = false;
+//        uint8_t str_index = tbl[edit_pos_index];
+//
+//        if (str_index == 8)
+//        {
+//            uint8_t old_is_int = unit_is_integer(*unit);
+//            *unit = (*unit == 0) ? 3 : (*unit - 1);
+//            uint8_t new_is_int = unit_is_integer(*unit);
+//
+//            if (!old_is_int && new_is_int) convert_val_to_integer(val);
+//            if ( old_is_int && !new_is_int) convert_val_to_decimal(val);
+//
+//            tbl = get_index_table(*unit, &tbl_len);
+//            edit_pos_index = tbl_len - 1;
+//        }
+//        else
+//        {
+//            val[str_index] = (val[str_index] == '0') ? '9' : val[str_index] - 1;
+//        }
+//    }
+//
+//    if (sw4_press_flag)
+//    {
+//        sw4_press_flag = false;
+//        edit_pos_index = (edit_pos_index + 1) % tbl_len;
+//    }
+//
+//    tbl = get_index_table(*unit, &tbl_len);
+//    uint8_t str_index = tbl[edit_pos_index];
+//
+//    uint8_t lcd_col;
+//    if (str_index == 8)
+//    {
+//        lcd_col = 10;
+//    }
+//    else
+//    {
+//        lcd_col = str_index + 2;
+//    }
+//
+//    lcd_set_cursor(1, lcd_col);
+//    lcd_cursor_on();
+//}
 
 void lcd_alarm_screen_init(void)
 {
@@ -2917,11 +3009,11 @@ void lcd_unit_screen_init(void)
 void GetUnitString_print(uint8_t unit, char *dest)
 {
 	switch(unit){
-	case 0:  strcpy(dest, "1. mR/h");  break;
+	case 0:  strcpy(dest, "1. uR/h");  break;
 	case 1:  strcpy(dest, "2. uSv/h"); break;
 	case 2:  strcpy(dest, "3. cps");   break;
 	case 3:  strcpy(dest, "4. cpm");   break;
-	default: strcpy(dest, "1. mR/h");  break;
+	default: strcpy(dest, "1. uR/h");  break;
 	}
 }
 
@@ -3257,8 +3349,9 @@ void lcd_home_screen_init(void)
 void lcd_home_screen_update(uint32_t cps, uint16_t unit_mode)
 {
 	char str[16];
-	char unit[7] = "";
-	float dose = 0.0;
+	char unit[7]      = "";
+	float dose        = 0.0;
+	uint32_t dose_val = 0;
 	char headline[14] = "";
 
 	// ---------------- Update HEADLINE ----------------
@@ -3273,10 +3366,10 @@ void lcd_home_screen_update(uint32_t cps, uint16_t unit_mode)
 			strcpy(headline, "ALARM");
 			break;
 		case Overrun_Flag:
-			strcpy(headline, "   OR");
+			strcpy(headline, "   OVR");
 			break;
 		case Overload_Flag:
-			strcpy(headline, "   OL");
+			strcpy(headline, "   OFL");
 			break;
 		case Hv_Fault_Flag:
 			strcpy(headline, "HV FAIL  ");
@@ -3288,10 +3381,10 @@ void lcd_home_screen_update(uint32_t cps, uint16_t unit_mode)
 			strcpy(headline, "ACK ALARM");
 			break;
 		case Ack_Flag_Overrun:
-			strcpy(headline, "ACK OR");
+			strcpy(headline, "ACK OVR");
 			break;
 		case Ack_Flag_OverLoad:
-			strcpy(headline, "ACK OL");
+			strcpy(headline, "ACK OFL");
 			break;
 		default:
 			strcpy(headline, "DOSE RATE");
@@ -3311,7 +3404,7 @@ void lcd_home_screen_update(uint32_t cps, uint16_t unit_mode)
 	{
 		switch (unit_mode)
 		{
-		case 0: strcpy(unit, "mR/h "); break;
+		case 0: strcpy(unit, "uR/h "); break;
 		case 1: strcpy(unit, "uSv/h"); break;
 		case 2: strcpy(unit, "cps  "); break;
 		case 3: strcpy(unit, "cpm  "); break;
@@ -3330,11 +3423,11 @@ void lcd_home_screen_update(uint32_t cps, uint16_t unit_mode)
 
 	switch (unit_mode)
 	{
-	case 0: // ----------mR/h----------
-		dose = dose_mRh;
+	case 0: // ----------uR/h----------
+		dose = dose_uRh;
 		break;
 	case 1: // ---------µSv/h----------
-		dose = dose_mRh * 10.0f;
+		dose = dose_uRh * 10.0f;
 		break;
 	case 2: // ---------CPS--------------
 		break;
@@ -3351,32 +3444,50 @@ void lcd_home_screen_update(uint32_t cps, uint16_t unit_mode)
 		snprintf(str, sizeof(str), "%06lu", cpm);
 	}
 	else{
-		//			snprintf(str, sizeof(str), "%07.2f", dose);
-		uint32_t dose_x100 = (uint32_t)(dose * 100.0f + 0.5f);
-		snprintf(str, sizeof(str),
-				"%04lu.%02lu",
-				dose_x100 / 100,
-				dose_x100 % 100);
+//		uint32_t dose_x100 = (uint32_t)(dose * 100.0f + 0.5f);
+//		snprintf(str, sizeof(str),
+//				"%04lu.%02lu",
+//				dose_x100 / 100,
+//				dose_x100 % 100);
+		dose_val = (uint32_t)dose;
+		snprintf(str, sizeof(str), "%06lu", dose_val);
 	}
 
 	lcd_set_cursor(1,2);
 	lcd_print(str);
 
 	// ----------Update 7_Segment------------------
-	uint32_t scaled_val;
-	if(unit_mode == 2)        //cps
-	{
-		scaled_val = cps;
-		MAX7219_DisplayFloat(scaled_val,0);
-	}
-	else if(unit_mode == 3)   //cpm
-	{
-		scaled_val = cpm;
-		MAX7219_DisplayFloat(scaled_val,0);
+	if(State_Flag == Normal_Flag){
+		uint32_t scaled_val;
+		if(unit_mode == 2)        //cps
+		{
+			scaled_val = cps;
+			MAX7219_DisplayFloat(scaled_val,0);
+		}
+		else if(unit_mode == 3)   //cpm
+		{
+			scaled_val = cpm;
+			MAX7219_DisplayFloat(scaled_val,0);
+		}
+		else{
+			//		scaled_val = (uint32_t)(dose * 100 + 0.5f);
+			//		MAX7219_DisplayFloat(scaled_val,2);
+			uint32_t dose = (uint32_t)dose_val;
+			MAX7219_DisplayFloat(dose,0);
+		}
 	}
 	else{
-		scaled_val = (uint32_t)(dose * 100 + 0.5f);
-		MAX7219_DisplayFloat(scaled_val,2);
+		switch(State_Flag)
+		{
+		case Alarm_Flag:          MAX7219_DisplayString(" ALA  ");  break;
+		case Dtc_Failed_Flag:     MAX7219_DisplayString("DTC FL"); break;
+		case Overload_Flag:       MAX7219_DisplayString(" OFL  ");    break;
+		case Overrun_Flag:        MAX7219_DisplayString(" OVR  ");    break;
+		case Ack_Flag_OverLoad:   MAX7219_DisplayString(" AC OL"); break;
+		case Ack_Flag_Alarm:      MAX7219_DisplayString(" AC AL"); break;
+		case Ack_Flag_Overrun:    MAX7219_DisplayString(" AC OR"); break;
+		case Hv_Fault_Flag:       MAX7219_DisplayString(" HV FL");  break;
+		}
 	}
 
 }
@@ -3465,90 +3576,90 @@ void check_switch_status(void)
 
 void system_lcd_screen(void)
 {
-  switch(lcd_screen)
-  {
-   case Home_Screen:
-        lcd_home_screen(CPS_VAL,primary_unit);
-        break;
-   case Password_Screen:
-	    lcd_password_screen();
-	    break;
-   case Setup_Menu_Screen:
-	    lcd_setup_menu_screen();
-	    break;
-   case Set_Unit_Screen:
-	    lcd_unit_screen();
-	    break;
-   case Set_Alarm_Screen:
-	    lcd_alarm_screen();
-	    break;
-   case RS485_Setting_Screen:
-	    lcd_rs485_screen();
-	    break;
-   case Ethernet_Setting_Screen:
-	    lcd_ethernet_screen();
-	    break;
-   case AGM_Mode_Screen:
-	    lcd_agm_mode_screen();
-	    break;
-   case System_4_20_Min_Screen:
-	    lcd_4_20_min_screen();
-	    break;
-   case System_4_20_Max_Screen:
-	    lcd_4_20_max_screen();
-	    break;
-   case System_4_20_Min_Cal_Screen:
-	    lcd_4_20_min_cal_screen();
-	    break;
-   case System_4_20_Max_Cal_Screen:
-	    lcd_4_20_max_cal_screen();
-	    break;
-   case Overload_Setting_Screen:
-	    lcd_overload_screen();
-	    break;
-   case Overrange_Setting_Screen:
-	    lcd_overrange_screen();
-	    break;
-   case System_Calibration_Screen:
-	    lcd_calibration_screen();
-	    break;
-   case System_Hv_Read_Screen:
-	    lcd_hv_read();
-	    break;
-   case System_Hv_Write_Screen:
-	    lcd_hv_write();
-	    break;
-   case System_Audio_Mode_Screen:
-	    lcd_audio_mode_screen();
-	    break;
-   case System_Freq_Recv_Screen:
-	    lcd_freq_recv_screen();
-	    break;
-   case System_Freq_Dtc_Screen:
-	    lcd_freq_dtc_screen();
-	    break;
-   case System_Rtc_Screen:
-	    lcd_rtc_screen();
-	    break;
-   case Modify_Password_Screen:
-	    lcd_modify_password_screen();
-	    break;
-   case PC_Ethernet_Setting_Screen:
-	    lcd_ethernet_screen_PC();
-	    break;
-   case System_Read_Data:
-	    lcd_read_sd_data();
-	    break;
-   case System_Read_Mode:
-	    lcd_read_sd_mode();
-	    break;
-   case System_Save_Setting_Screen:
-	    lcd_save_setting_screen();
-	    break;
-   default:
-	    lcd_home_screen(CPS_VAL,primary_unit);
-	    break;
-  }
+	switch(lcd_screen)
+	{
+	case Home_Screen:
+		lcd_home_screen(CPS_VAL,primary_unit);
+		break;
+	case Password_Screen:
+		lcd_password_screen();
+		break;
+	case Setup_Menu_Screen:
+		lcd_setup_menu_screen();
+		break;
+	case Set_Unit_Screen:
+		lcd_unit_screen();
+		break;
+	case Set_Alarm_Screen:
+		lcd_alarm_screen();
+		break;
+	case RS485_Setting_Screen:
+		lcd_rs485_screen();
+		break;
+	case Ethernet_Setting_Screen:
+		lcd_ethernet_screen();
+		break;
+	case AGM_Mode_Screen:
+		lcd_agm_mode_screen();
+		break;
+	case System_4_20_Min_Screen:
+		lcd_4_20_min_screen();
+		break;
+	case System_4_20_Max_Screen:
+		lcd_4_20_max_screen();
+		break;
+	case System_4_20_Min_Cal_Screen:
+		lcd_4_20_min_cal_screen();
+		break;
+	case System_4_20_Max_Cal_Screen:
+		lcd_4_20_max_cal_screen();
+		break;
+	case Overload_Setting_Screen:
+		lcd_overload_screen();
+		break;
+	case Overrange_Setting_Screen:
+		lcd_overrange_screen();
+		break;
+	case System_Calibration_Screen:
+		lcd_calibration_screen();
+		break;
+	case System_Hv_Read_Screen:
+		lcd_hv_read();
+		break;
+	case System_Hv_Write_Screen:
+		lcd_hv_write();
+		break;
+	case System_Audio_Mode_Screen:
+		lcd_audio_mode_screen();
+		break;
+	case System_Freq_Recv_Screen:
+		lcd_freq_recv_screen();
+		break;
+	case System_Freq_Dtc_Screen:
+		lcd_freq_dtc_screen();
+		break;
+	case System_Rtc_Screen:
+		lcd_rtc_screen();
+		break;
+	case Modify_Password_Screen:
+		lcd_modify_password_screen();
+		break;
+	case PC_Ethernet_Setting_Screen:
+		lcd_ethernet_screen_PC();
+		break;
+	case System_Read_Data:
+		lcd_read_sd_data();
+		break;
+	case System_Read_Mode:
+		lcd_read_sd_mode();
+		break;
+	case System_Save_Setting_Screen:
+		lcd_save_setting_screen();
+		break;
+	default:
+		lcd_home_screen(CPS_VAL,primary_unit);
+		break;
+	}
 }
 
 void LCD_SetData(uint8_t data) {
